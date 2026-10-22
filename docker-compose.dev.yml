@@ -1,0 +1,22 @@
+# 开发环境依赖（只含 MySQL，应用本体在宿主机跑，方便断点调试）
+# 用法：docker compose -f docker-compose.dev.yml up -d
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: teyvat-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: "123456"        # 仅本地开发，别照抄到任何服务器
+      MYSQL_DATABASE: teyvat_guild         # 容器首次启动自动建库
+      TZ: Asia/Shanghai
+    ports:
+      - "3308:3306"                        # 3308 避开博客的 3307
+    volumes:
+      - teyvat_mysql_data:/var/lib/mysql
+    healthcheck:                           # 应用以后也要靠它判断 DB 就绪
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p123456"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  teyvat_mysql_data:
