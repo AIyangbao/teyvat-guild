@@ -1,0 +1,1 @@
+# 约定：每个 endpoint 必须捕获 BizError 并显式给 4xx，code/message 结构统一
