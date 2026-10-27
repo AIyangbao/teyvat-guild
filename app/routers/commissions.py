@@ -32,4 +32,20 @@ async def pay(order_id: int, db=Depends(get_db), player_id: int = Depends(fake_c
     except BizError as e:
         status = 409 if e.code == "STATE_ILLEGAL" else (404 if e.code == "ORDER_NOT_FOUND" else 400)
         raise HTTPException(status_code=status, detail={"code": e.code, "message": str(e)})
+
+async def fake_current_adventurer(x_adventurer_id: int = Header(...)) -> int:
+     """假鉴权：真 JWT 后替换。"""
+     return x_adventurer_id
+
+@router.post("/{order_id}/accept")
+async def aacept(order_id: int,
+                 db=Depends(get_db),
+                 adventurer_id: int = Depends(fake_current_adventurer)):
+    try:
+        order = await commission_state.accept_order(db, order_id, adventurer_id)
+    except BizError as e:
+        status = 409 if e.code == "ACCEPT_CONFLICT" else 400
+        raise HTTPException(status_code=status, detail={"code": e.code, "message": str(e)})
+    return {"order_no": order.order_no, "status": order.status,
+            "adventurer_id": order.adventurer_id}
     

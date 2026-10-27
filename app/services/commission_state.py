@@ -1,7 +1,7 @@
-from sqlalchemy import select
+from sqlalchemy import select,update
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import BizError
-from app.core.state_machine import IllegalTransition, next_status
+from app.core.state_machine import IllegalTransition, next_status,IN_PROGRESS,PENDING_ACCEPT
 from app.core.time_utils import now_plus, utcnow
 from app.models import Commission, CommissionLog
 from app.config import settings
@@ -50,3 +50,31 @@ async def transition(db: AsyncSession, order_id: int, event: str, *,
     ))
     await db.flush()
     return order
+
+async def accept_order(db: AsyncSession, order_id: int, adventurer_id: int) -> Commission:
+    """抢单：单语句 CAS。条件不满足则 rowcount==0，说明被别人抢先。"""
+    result = await db.execute(
+        update(Commission)
+        .where(Commission.id == order_id,
+               Commission.status == PENDING_ACCEPT)
+        .values(status=IN_PROGRESS,
+                adventurer_id=adventurer_id,
+                accepted_at=utcnow())
+    )
+    if result.rowcount == 0:
+        raise BizError("手慢了,该委托已被接走", code="ACCEPT_CONFLICT")
+
+    order = (await db.execute(
+        select(Commission).where(Commission.id == order_id)
+    )).scalar_one()
+    db.add(CommissionLog(
+        commission_id=order.id,
+        from_status=PENDING_ACCEPT,
+        to_status=IN_PROGRESS,
+        event="抢单成功",
+        operator_id=adventurer_id,
+        operator_role="adventurer",
+    ))
+    await db.flush()
+    return order
+
