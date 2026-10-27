@@ -34,7 +34,7 @@ TRANSITIONS: dict[tuple[str,str], str] = {
 
 EVENTS = sorted({e for _, e in TRANSITIONS})
 
-class IllegalTranstition(Exception):
+class IllegalTransition(Exception):
     def __init__(self, from_status: str, event: str):
         self.from_status, self.event = from_status, event
         super().__init__(f"非法转移:{from_status} -- [{event}]--> ?")
@@ -43,5 +43,5 @@ def next_status(current: str, event: str) -> str:
     """纯函数，不碰 DB，所以 135 种组合能毫秒级穷举。"""
     target = TRANSITIONS.get((current,event))
     if target is None:
-        raise IllegalTranstition(current,event)
+        raise IllegalTransition(current,event)
     return target

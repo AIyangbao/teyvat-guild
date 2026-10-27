@@ -2,7 +2,7 @@ import pytest
 
 from app.core.state_machine import (
     ALL_STATES, EVENTS, TRANSITIONS,
-    IllegalTranstition, next_status,
+    IllegalTransition, next_status,
 )
 
 LEGAL = list(TRANSITIONS.items())
@@ -21,5 +21,5 @@ def test_legal(pair, target):
 
 @pytest.mark.parametrize(("state", "event"), ILLEGAL)
 def test_illegal(state, event):
-    with pytest.raises(IllegalTranstition):
+    with pytest.raises(IllegalTransition):
         next_status(state, event)

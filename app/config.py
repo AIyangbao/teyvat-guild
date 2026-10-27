@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     db_echo: bool = False
 
     order_pay_timeout_min: int = 30
+    order_accept_timeout_min: int = 15
     order_verify_timeout_hours: int = 72
     after_sale_days: int = 7
 
