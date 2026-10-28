@@ -22,7 +22,7 @@ async def create_order(data: OrderCreateIn,
         )
     except BizError as e:
         raise HTTPException(status_code=400,detail={"code":e.code,"message":str(e)})
-    return {"order_no": order.order_no, "total_amount": str(order.total_amount)}
+    return {"order_id": order.id,"order_no": order.order_no, "total_amount": str(order.total_amount)}
 
 @router.post("/{order_id}/pay")
 async def pay(order_id: int, db=Depends(get_db), player_id: int = Depends(fake_current_player)):
