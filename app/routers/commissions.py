@@ -48,4 +48,30 @@ async def aacept(order_id: int,
         raise HTTPException(status_code=status, detail={"code": e.code, "message": str(e)})
     return {"order_no": order.order_no, "status": order.status,
             "adventurer_id": order.adventurer_id}
+
+@router.post("/{order_id}/deliver")
+async def deliver(order_id: int, db=Depends(get_db),
+                  adventurer_id: int = Depends(fake_current_adventurer)):
+    try:
+        order = await commission_state.deliver_by_adventurer(db, order_id, adventurer_id)
+    except BizError as e:
+        status = (409 if e.code == "STATE_ILLEGAL" 
+                  else 404 if e.code == "ORDER_NOT_FOUND" 
+                  else 403 if e.code == "FORBIDDEN"
+                  else 400)
+        raise HTTPException(status_code=status, detail={"code": e.code, "message": str(e)})
+    return {"order_id": order.id, "status": order.status}
+
+@router.post("/{order_id}/confirm")
+async def confirm(order_id: int, db= Depends(get_db), player_id: int = Depends(fake_current_player)):
+
+    try:
+        order = await commission_state.confirm_by_player(db, order_id, player_id)
+    except BizError as e:
+        status = (409 if e.code == "STATE_ILLEGAL" 
+                  else 404 if e.code == "ORDER_NOT_FOUND" 
+                  else 403 if e.code == "FORBIDDEN"
+                  else 400)
+        raise HTTPException(status_code=status, detail={"code": e.code, "message": str(e)})
+    return {"order_id": order.id, "status": order.status}
     

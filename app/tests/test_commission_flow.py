@@ -102,3 +102,32 @@ class TestTransition:
         with pytest.raises(BizError) as e:
             await commission_state.accept_order(db, order.id, adventurer_id=1)
         assert e.value.code == "ACCEPT_CONFLICT"
+
+    async def test_full_lifecycle(self, db, on_shelf_item):
+        order = await commission_service.create_order(
+            db, 1, [{"service_item_id": on_shelf_item.id, "qty": 1}], "1", "天空岛"
+        )
+        await commission_state.transition(db, order.id, "支付成功", operator_role="player")
+        await commission_state.accept_order(db, order.id, adventurer_id=200)
+
+        order = await commission_state.deliver_by_adventurer(db, order.id, adventurer_id=200)
+        assert order.status == "待验收"
+        assert order.finished_at is not None
+
+        order = await commission_state.confirm_by_player(db, order.id, player_id=1)
+        assert order.status == "已完成"
+
+        order = await commission_state.settle(db, order.id)
+        assert order.status == "已结算"
+        assert order.settled_at is not None
+
+
+    async def test_deliver_by_wrong_adventurer_403(self, db, on_shelf_item):
+        order = await commission_service.create_order(
+            db, 1, [{"service_item_id": on_shelf_item.id, "qty": 1}], "1", "天空岛"
+        )
+        await commission_state.transition(db, order.id, "支付成功", operator_role="player")
+        await commission_state.accept_order(db, order.id, adventurer_id=200)
+        with pytest.raises(BizError) as e:
+            order = await commission_state.deliver_by_adventurer(db, order.id, adventurer_id=999)
+        assert e.value.code == "FORBIDDEN"

@@ -78,3 +78,31 @@ async def accept_order(db: AsyncSession, order_id: int, adventurer_id: int) -> C
     await db.flush()
     return order
 
+async def confirm_by_player(db: AsyncSession, order_id: int, player_id: int) -> Commission:
+    """玩家确认交付：先验归属，再走状态机。"""
+    order = (await db.execute(
+        select(Commission).where(Commission.id == order_id).with_for_update()
+    )).scalar_one_or_none()
+    if order is None:
+        raise BizError("委托不存在", code="ORDER_NOT_FOUND")
+    if order.player_id != player_id:
+        raise BizError("无权操作该委托", code="FORBIDDEN")
+    return await transition(db, order_id, "玩家确认",
+                            operator_id=player_id, operator_role="player")
+
+async def deliver_by_adventurer(db: AsyncSession, order_id: int, adventurer_id: int) -> Commission:
+    """冒险家提交交付：先验这单是不是自己接的，再走状态机。"""
+    order = (await db.execute
+            (select(Commission).where(Commission.id == order_id).with_for_update()
+            )).scalar_one_or_none()
+    if order is None:
+        raise BizError("委托不存在", code="ORDER_NOT_FOUND")
+    if order.adventurer_id != adventurer_id:
+        raise BizError("无权操作该委托", code="FORBIDDEN")
+    return await transition(db, order_id, "提交交付",
+                            operator_id=adventurer_id, operator_role="adventurer")
+
+async def settle(db: AsyncSession, order_id: int) -> Commission:
+    """结算：平台发起。仅供定时任务/后台调用，不暴露公网接口。"""
+    return await transition(db, order_id, "结算", operator_role="system")
+
