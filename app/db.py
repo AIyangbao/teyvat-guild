@@ -25,3 +25,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         except Exception:
             await session.rollback()
             raise
+
+from fastapi import Depends
+
+DB = Depends(get_db, scope="function")
