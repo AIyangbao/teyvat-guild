@@ -19,6 +19,7 @@ TRANSITIONS: dict[tuple[str,str], str] = {
     (PENDING_PAY, "玩家取消"): CLOSED,
     (PENDING_ACCEPT, "抢单成功"): IN_PROGRESS,
     (PENDING_ACCEPT, "超时无人接"): PENDING_ACCEPT, # 自转移: 只累加pool_retry
+    (PENDING_ACCEPT, "无人接单关闭"): CANCELED,     # pool_retry 到顶的终止路径（新增这行）
     (PENDING_ACCEPT, "玩家取消"): CANCELED,
     (IN_PROGRESS, "提交交付"): PENDING_VERIFY,
     (IN_PROGRESS, "冒险家弃单"): CANCELED,
