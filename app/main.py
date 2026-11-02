@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI):
         except asyncio.CancelledError:
             pass
         await engine.dispose()
-app = FastAPI(title="Teyat Guild", lifespan=lifespan)
+app = FastAPI(title="Teycat Guild", lifespan=lifespan)
 app.include_router(commissions.router)
 @app.get("/")
 async def root():
