@@ -11,9 +11,9 @@ ILLEGAL = [(s,e) for s in ALL_STATES for e in EVENTS if (s,e) not in TRANSITIONS
 def test_counts():
     """护栏: 转移表改了但数字没同步, 这里先红。"""
     assert len(ALL_STATES) == 9
-    assert len(EVENTS) == 15
-    assert len(LEGAL) == 16
-    assert len(LEGAL) + len(ILLEGAL) == 135
+    assert len(EVENTS) == 16
+    assert len(LEGAL) == 17
+    assert len(LEGAL) + len(ILLEGAL) == 144
 
 @pytest.mark.parametrize(("pair", "target"), LEGAL)
 def test_legal(pair, target):
