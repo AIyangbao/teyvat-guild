@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, Header,HTTPException
+from fastapi import APIRouter, Depends, Header, Query, HTTPException
 from app.db import get_db
 from app.core.exceptions import BizError
 from app.services import commission_service,commission_state
-from app.schemas.commission import OrderCreateIn
+from app.schemas.commission import OrderCreateIn, HallPageOut
 
 router = APIRouter(prefix="/commissions",tags=["委托"])
 
@@ -32,6 +32,7 @@ async def pay(order_id: int, db=Depends(get_db), player_id: int = Depends(fake_c
     except BizError as e:
         status = 409 if e.code == "STATE_ILLEGAL" else (404 if e.code == "ORDER_NOT_FOUND" else 400)
         raise HTTPException(status_code=status, detail={"code": e.code, "message": str(e)})
+    return {"order_id": order.id, "status": order.status}
 
 async def fake_current_adventurer(x_adventurer_id: int = Header(...)) -> int:
      """假鉴权：真 JWT 后替换。"""
@@ -74,4 +75,11 @@ async def confirm(order_id: int, db= Depends(get_db), player_id: int = Depends(f
                   else 400)
         raise HTTPException(status_code=status, detail={"code": e.code, "message": str(e)})
     return {"order_id": order.id, "status": order.status}
-    
+
+@router.get("/hall", response_model=HallPageOut)
+async def hall(page: int = Query(1, ge=1),
+               page_size: int = Query(20, ge=1, le=50),
+               db=Depends(get_db)):
+    """委托大厅：公开接口，不需要登录头。"""
+    total, rows = await commission_service.list_hall(db, page, page_size)
+    return HallPageOut(total=total, items=rows)

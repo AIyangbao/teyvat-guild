@@ -131,3 +131,46 @@ class TestTransition:
         with pytest.raises(BizError) as e:
             order = await commission_state.deliver_by_adventurer(db, order.id, adventurer_id=999)
         assert e.value.code == "FORBIDDEN"
+
+class TestHall:
+    async def test_shown_after_then_hidden_after_accept(self, db, on_shelf_item):
+        order = await commission_service.create_order(
+            db, player_id=1,
+            item_inputs=[{"service_item_id": on_shelf_item.id, "qty": 2}],
+            game_uid="100000001", server="天空岛",
+        )
+        # 刚下单是待支付，不在大厅
+        total0, rows0 = await commission_service.list_hall(db, page=1, page_size=20)
+        assert all(r.id != order.id for r in rows0)
+
+        # 支付后进入待接单，出现在大厅
+        await commission_state.transition(db, order.id, "支付成功",
+                                          operator_id=1, operator_role="player")
+        total1, rows1 = await commission_service.list_hall(db, page=1, page_size=20)
+        assert total1 >= 1
+        shown = next(r for r in rows1 if r.id == order.id)
+        assert shown.items[0].name == "测试服务"
+        assert shown.items[0].quantity == 2
+
+        # 被抢走后从大厅消失
+        await commission_state.accept_order(db, order.id, adventurer_id=200)
+        _, rows2 = await commission_service.list_hall(db, page=1, page_size=20)
+        assert all(r.id != order.id for r in rows2)
+        
+        
+
+    async def test_pagination_slices(self, db, on_shelf_item):
+         """造 3 单，page_size=2 时第一页 2 条、total 是全部。"""
+         for _ in range(3):
+             o = await commission_service.create_order(
+                 db, player_id=1,
+                 item_inputs=[{"service_item_id": on_shelf_item.id, "qty": 1}],
+                 game_uid="1", server="天空岛",
+             )
+             await commission_state.transition(db, o.id, "支付成功",
+                                               operator_id=1, operator_role="player")
+         total, rows = await commission_service.list_hall(db, page=1, page_size=2)
+         assert len(rows) == 2 and total >= 3
+         _, rows2 = await commission_service.list_hall(db, page=2, page_size=2)
+         assert rows2
+         assert all(r.id not in {x.id for x in rows} for r in rows2)

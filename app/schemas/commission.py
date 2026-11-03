@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from pydantic import BaseModel, Field
 
 class OrderItemIn(BaseModel):
@@ -11,3 +12,22 @@ class OrderCreateIn(BaseModel):
     server: str = Field(min_length=1, max_length=20)
     expect_time: datetime | None = None
     remark: str = Field(default="",max_length=255)
+
+class HallItemOut(BaseModel):
+    """大厅里一条订单的服务明细。"""
+    name: str
+    quantity: int
+    snapshot_price: Decimal
+
+class HallOrderOut(BaseModel):
+    id: int
+    order_no: str
+    total_amount: Decimal
+    remark: str
+    expect_time: datetime | None
+    created_at: datetime
+    items: list[HallItemOut]
+
+class HallPageOut(BaseModel):
+    total: int
+    items: list[HallOrderOut]

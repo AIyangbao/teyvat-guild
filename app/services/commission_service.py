@@ -1,11 +1,13 @@
 import uuid
 from decimal import Decimal
-from sqlalchemy import select
+from sqlalchemy import func,select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core.time_utils import now_plus, utcnow
 from app.core.exceptions import BizError
+from app.core.state_machine import PENDING_ACCEPT
 from app.models import Commission, CommissionItem, ServiceItem
+from app.schemas.commission import HallItemOut, HallOrderOut
 
 
 def _gen_order_no() -> str:
@@ -61,3 +63,42 @@ async def create_order(db: AsyncSession, player_id:int,
         item.commission_id = order.id
         db.add(item)
     return order
+
+async def list_hall(db: AsyncSession, page: int, page_size: int) -> tuple[int, list[HallOrderOut]]:
+    """委托大厅：待接单的分页列表，最新的在前。命中 idx_hall(status, created_at)。
+
+    明细用第二条 IN 查询拼装，固定 2 条 SQL——循环内逐单查就是 N+1。
+    """
+    cond = Commission.status == PENDING_ACCEPT
+
+    total = (await db.execute(
+        select(func.count()).select_from(Commission).where(cond)
+    )).scalar_one()
+
+    orders = (await db.execute(
+        select(Commission).where(cond)
+        .order_by(Commission.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )).scalars().all()
+
+    # 收集本页订单 id，一次 IN 查询拿全部明细
+    ids = [o.id for o in orders]
+    items_map: dict[int, list[HallItemOut]] = {i: [] for i in ids}
+    if ids:
+        rows = (await db.execute(
+            select(CommissionItem).where(CommissionItem.commission_id.in_(ids))
+        )).scalars().all()
+        for it in rows:
+            items_map[it.commission_id].append(HallItemOut(
+                name=it.snapshot_name,
+                quantity=it.quantity,
+                snapshot_price=it.snapshot_price,
+            ))
+
+    result = [HallOrderOut(
+        id = o.id, order_no=o.order_no, total_amount=o.total_amount,
+        remark=o.remark, expect_time=o.expect_time, created_at=o.created_at,
+        items=items_map[o.id],
+    ) for o in orders]
+    return total, result
