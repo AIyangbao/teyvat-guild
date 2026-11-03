@@ -26,6 +26,13 @@ async def _timeout_loop() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # uvicorn 只给 uvicorn.* 配了 handler，root 停在 WARNING；
+    # force=True 重建 root handler，否则 logger.info 被静默丢弃
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
+        force=True,
+    )
     # 引用必须持有：只 create_task 不存引用，任务可能被 GC 掉
     app.state.timeout_task = asyncio.create_task(_timeout_loop())
     try:
@@ -37,8 +44,12 @@ async def lifespan(app: FastAPI):
         except asyncio.CancelledError:
             pass
         await engine.dispose()
-app = FastAPI(title="Teycat Guild", lifespan=lifespan)
+
+
+app = FastAPI(title="Teyvat Guild", lifespan=lifespan)
 app.include_router(commissions.router)
+
+
 @app.get("/")
 async def root():
     return {"status": "ok", "service": "teyvat-guild"}
