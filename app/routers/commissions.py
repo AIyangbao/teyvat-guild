@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Header, Query, HTTPException
 from app.db import get_db
 from app.core.exceptions import BizError
 from app.services import commission_service,commission_state
-from app.schemas.commission import OrderCreateIn, HallPageOut
+from app.schemas.commission import OrderCreateIn, HallPageOut, CommissionDetailOut
 
 router = APIRouter(prefix="/commissions",tags=["委托"])
 
@@ -83,3 +83,25 @@ async def hall(page: int = Query(1, ge=1),
     """委托大厅：公开接口，不需要登录头。"""
     total, rows = await commission_service.list_hall(db, page, page_size)
     return HallPageOut(total=total, items=rows)
+
+@router.get("/mine", response_model=HallPageOut)
+async def my_orders(page: int = Query(1, ge=1),
+                    page_size: int = Query(20, ge=1, le=50),
+                    status: str | None = Query(None),
+                    db=Depends(get_db),
+                    player_id: int = Depends(fake_current_player)):
+    try:
+        total, rows = await commission_service.list_mine(
+            db, player_id, page, page_size, status)
+    except BizError as e:
+        raise HTTPException(status_code=400,
+                            detail={"code": e.code, "message": str(e)})
+    return HallPageOut(total=total, items=rows)
+
+@router.get("/{order_id}", response_model=CommissionDetailOut)
+async def detail(order_id: int, db=Depends(get_db)):
+    try:
+        return await commission_service.get_detail(db, order_id)
+    except BizError as e:
+        status = 404 if e.code == "ORDER_NOT_FOUND" else 400
+        raise HTTPException(status_code=status, detail={"code": e.code, "message": str(e)})

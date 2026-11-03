@@ -174,3 +174,49 @@ class TestHall:
          _, rows2 = await commission_service.list_hall(db, page=2, page_size=2)
          assert rows2
          assert all(r.id not in {x.id for x in rows} for r in rows2)
+
+class TestDetailAndMine:
+    async def _paid_order(self, db, on_shelf_item, player_id: int = 1):
+        o = await commission_service.create_order(
+            db, player_id=player_id,
+            item_inputs=[{"service_item_id": on_shelf_item.id, "qty": 1}],
+            game_uid="1", server="天空岛",
+        )
+        await commission_state.transition(db, o.id, "支付成功",
+                                          operator_id=player_id, operator_role="player")
+        return o
+
+    async def test_detail_has_items_and_timeline(self, db, on_shelf_item):
+        order = await self._paid_order(db, on_shelf_item)
+        d = await commission_service.get_detail(db, order.id)
+        assert d.status == "待接单"
+        assert len(d.items) == 1
+        assert d.items[0].name == "测试服务"
+        assert [t.event for t in d.timeline] == ["支付成功"]
+        assert d.timeline[0].from_status == "待支付"
+        assert d.timeline[0].to_status == "待接单"
+
+    async def test_detail_not_found(self, db):
+        with pytest.raises(BizError) as e:
+            await commission_service.get_detail(db, 999999)
+        assert e.value.code == "ORDER_NOT_FOUND"
+
+    async def test_mine_filters_by_player(self, db, on_shelf_item):
+        mine = await self._paid_order(db, on_shelf_item, player_id=1)
+        other = await self._paid_order(db, on_shelf_item, player_id=2)
+
+        total,rows = await commission_service.list_mine(db, 1, 1, 20)
+        ids = [r.id for r in rows]
+        assert mine.id in ids and other.id not in ids
+
+    async def test_mine_status_filter(self, db, on_shelf_item):
+        order = await self._paid_order(db, on_shelf_item)
+        _, rows = await commission_service.list_mine(db, 1, 1, 20, status="待接单")
+        assert any(r.id == order.id for r in rows)
+        _, rows2 = await commission_service.list_mine(db, 1, 1, 20, status="已完成")
+        assert all(r.id != order.id for r in rows2)
+
+    async def test_mine_rejects_unknown_status(self, db):
+        with pytest.raises(BizError) as e:
+            await commission_service.list_mine(db, 1, 1, 20, status="随便写")
+        assert e.value.code == "STATE_INVALID"
