@@ -5,3 +5,10 @@ class BizError(Exception):
     def __init__(self, message: str, code: str = "BIZ_ERROR"):
         self.code = code
         super().__init__(message)
+
+# app/core/exceptions.py 追加
+class ErrCode:
+    CATEGORY_NOT_FOUND = "CATEGORY_NOT_FOUND"
+    CATEGORY_DUPLICATE = "CATEGORY_DUPLICATE"
+    CATEGORY_IN_USE = "CATEGORY_IN_USE"
+    ITEM_NOT_FOUND = "ITEM_NOT_FOUND"
