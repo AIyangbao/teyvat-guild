@@ -6,7 +6,7 @@ from fastapi import FastAPI
 
 from app.config import settings
 from app.db import engine
-from app.routers import admin, commissions
+from app.routers import admin, auth,commissions
 from app.tasks.timeout_scanner import scan_once
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Teyvat Guild", lifespan=lifespan)
 app.include_router(admin.router)
 app.include_router(commissions.router)
-
+app.include_router(auth.router)
 
 @app.get("/")
 async def root():

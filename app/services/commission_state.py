@@ -62,6 +62,11 @@ async def accept_order(db: AsyncSession, order_id: int, adventurer_id: int) -> C
                 accepted_at=utcnow())
     )
     if result.rowcount == 0:
+        exists = (await db.execute(
+            select(Commission.id).where(Commission.id == order_id)
+        )).scalar_one_or_none()
+        if exists is None:
+            raise BizError("委托不存在", code="ORDER_NOT_FOUND")
         raise BizError("手慢了,该委托已被接走", code="ACCEPT_CONFLICT")
 
     order = (await db.execute(

@@ -9,6 +9,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     phone: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
     nickname: Mapped[str] = mapped_column(String(50), nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(128), nullable=False) 
     avatar: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     role: Mapped[str] = mapped_column(String(20), nullable=False, default="player")
     status: Mapped[int] = mapped_column(Integer, nullable=False, default=1)

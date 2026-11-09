@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     max_pool_retry: int = 3       # 待接单自转移上限，到顶走「无人接单关闭」
     after_sale_days: int = 7
 
+    jwt_secret: str = "dev-only-change-me"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 120
+
     @property
     def db_url(self) -> str:
         return (f"mysql+aiomysql://{self.db_user}:{self.db_password}"
