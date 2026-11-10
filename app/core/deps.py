@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import decode_access_token
-from app.db import get_db
+from app.db import DB
 from app.models import Adventurer, User
 
 # auto_error=False：FastAPI 默认在缺头时抛 403，但我们约定 401，自己控制
@@ -23,7 +23,7 @@ def _unauthorized(msg: str) -> HTTPException:
 
 async def get_current_user(
         credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
-        db: AsyncSession = Depends(get_db),
+        db: AsyncSession = DB,
 ) -> User:
     """所有受保护接口的第一站:token 有效 + 人存在 + 状态正常。"""
     if credentials is None:
@@ -48,7 +48,7 @@ def get_current_player(user: User = Depends(get_current_user)) -> int:
 
 async def get_current_adventurer(
         user: User = Depends(get_current_user),
-        db: AsyncSession = Depends(get_db),
+        db: AsyncSession = DB,
 ) -> int:
     if user.role != "adventurer":
         raise HTTPException(status_code=403,

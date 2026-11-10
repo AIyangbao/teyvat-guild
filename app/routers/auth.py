@@ -5,14 +5,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 
 from app.core.security import create_access_token, hash_password, verify_password
-from app.db import get_db
+from app.db import DB
 from app.models import User
 from app.schemas.auth import LoginIn, RegisterIn, TokenOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/register", response_model=TokenOut, status_code=201)
-async def register(data: RegisterIn, db: AsyncSession = Depends(get_db)):
+async def register(data: RegisterIn, db: AsyncSession = DB):
      # 先查重给友好提示；并发正确性由 phone 的 unique 约束兜底
      dup = (await db.execute(
           select(User.id).where(User.phone == data.phone)
@@ -36,7 +36,7 @@ async def register(data: RegisterIn, db: AsyncSession = Depends(get_db)):
                      user_id=user.id, role=user.role, nickname=user.nickname)
 
 @router.post("/login", response_model=TokenOut)
-async def login(data: LoginIn, db: AsyncSession = Depends(get_db)):
+async def login(data: LoginIn, db: AsyncSession = DB):
      user = (await db.execute(
           select(User).where(User.phone == data.phone)
      )).scalar_one_or_none()

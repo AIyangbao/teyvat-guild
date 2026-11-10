@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BizError
-from app.db import get_db
+from app.db import DB
 from app.schemas.catalog import (
     CategoryIn, CategoryOut, CategoryUpdate, ItemIn, ItemOut, ItemUpdate,
 )
@@ -29,7 +29,7 @@ def _fail(e: BizError) -> NoReturn:
                         detail={"code": e.code, "message": str(e)})
 
 @router.post("/categories", response_model=CategoryOut, status_code=201)
-async def create_category(data: CategoryIn, db:AsyncSession = Depends(get_db)):
+async def create_category(data: CategoryIn, db:AsyncSession = DB):
     try:
         return await catalog_service.create_category(db, data)
     except BizError as e:
@@ -38,26 +38,26 @@ async def create_category(data: CategoryIn, db:AsyncSession = Depends(get_db)):
 
 @router.get("/categories", response_model=list[CategoryOut])
 async def list_categories(include_disabled: bool = Query(True),
-                          db: AsyncSession = Depends(get_db)):
+                          db: AsyncSession = DB):
     return await catalog_service.list_categories(db, include_disabled)
 
 @router.put("/categories/{cat_id}", response_model=CategoryOut)
 async def update_category(cat_id: int, data: CategoryUpdate,
-                          db: AsyncSession = Depends(get_db)):
+                          db: AsyncSession = DB):
     try:
         return await catalog_service.update_category(db, cat_id, data)
     except BizError as e:
         _fail(e)
 
 @router.delete("/categories/{cat_id}", status_code=204)
-async def delete_category(cat_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_category(cat_id: int, db: AsyncSession = DB):
     try:
         await catalog_service.delete_category(db, cat_id)
     except BizError as e:
         _fail(e)
 
 @router.post("/items", response_model=ItemOut, status_code=201)
-async def create__item(data:ItemIn, db: AsyncSession = Depends(get_db)):
+async def create__item(data:ItemIn, db: AsyncSession = DB):
     try:
         return await catalog_service.create_item(db, data)
     except BizError as e:
@@ -66,12 +66,12 @@ async def create__item(data:ItemIn, db: AsyncSession = Depends(get_db)):
 @router.get("/items", response_model=list[ItemOut])
 async def list_items(category_id:int | None = Query(None),
                      status: int | None = Query(None),
-                     db:AsyncSession = Depends(get_db)):
+                     db:AsyncSession = DB):
     return await catalog_service.list_items(db, category_id, status)
 
 @router.put("/items/{item_id}", response_model=ItemOut)
 async def update_item(item_id:int, data: ItemUpdate,
-                      db: AsyncSession = Depends(get_db)):
+                      db: AsyncSession = DB):
     try:
         return await catalog_service.update_item(db, item_id, data)
     except BizError as e:

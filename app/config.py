@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     scan_interval_sec: int = 60   # 扫描器轮询间隔（下一阶段 lifespan 用）
     max_pool_retry: int = 3       # 待接单自转移上限，到顶走「无人接单关闭」
     after_sale_days: int = 7
+    # 支付回调验签（模拟环境用共享密钥；真实支付是 MD5/RSA 对 body 签名）
+    pay_callback_secret: str = "mock-callback-secret-change-me"
+
 
     jwt_secret: str = "dev-only-change-me"
     jwt_algorithm: str = "HS256"
