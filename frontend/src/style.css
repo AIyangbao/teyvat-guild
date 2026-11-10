@@ -1,0 +1,18 @@
+/* 全局基础样式：只做布局级设置，组件样式各文件自带 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: #f5f7fa;
+  color: #303133;
+}
+
+.page {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 20px 16px 40px;
+}

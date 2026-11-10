@@ -11,26 +11,29 @@
 | 能力 | 入口 | 验证方式 |
 |---|---|---|
 | 下单（价格快照 + 明细回填） | `POST /commissions/create_order` | 单测 + 冒烟：118.00 = 68×1 + 25×2 |
-| 支付 | `POST /commissions/{id}/pay` | 推进 `待支付 → 待接单` 并写 `accept_deadline` |
+| **JWT 鉴权** | `POST /auth/register` `/login`；`core/security.py` + `core/deps.py` | 冒烟 12 条：401/403 分界、防枚举、封号查库、角色实时变更 |
+| **支付（幂等回调）** | `POST /commissions/{id}/pay` → `POST /payments/{no}/callback` | 冒烟 9 条：发起幂等 / 验签 / 金额校验 / 重复回调不二次推进 |
 | 抢单（CAS） | `POST /commissions/{id}/accept` | 压测 20 / 100 并发，结果恒为 `{200: 1, 409: N-1}` |
 | 交付 / 确认 / 结算 | `POST .../deliver` `/confirm`；`settle()` | 归属校验 + 状态机单测 |
 | 委托大厅 | `GET /commissions/hall` | 待接单分页，二次 `IN` 查询拼明细（固定 2 条 SQL） |
 | 我的委托 | `GET /commissions/mine` | 按玩家过滤 + 可选状态筛选 |
 | 订单详情 | `GET /commissions/{id}` | 明细 + 状态流转时间线 |
 | 超时扫描 | `app/tasks/timeout_scanner.py` | 支付超时 28 单归零；接单超时自转移 3 次后关闭 |
+| 管理端 CRUD | `/admin/categories` `/admin/items` | 单测 9 条 + 引用检查防误删分类 |
 
-测试：**171 passed**（服务层直调，无 HTTP 层）。
+测试：**188 passed**（服务层直调 + security 纯函数）。
+冒烟：`scripts/smoke_jwt.py`（12 条）+ `scripts/smoke_payment.py`（9 条），起服务后可直接跑。
+已知架构修复：所有路由依赖改为 `DB = Depends(get_db, scope="function")`，**commit 先于响应发送**（否则客户端零延迟跟请求会读到未提交数据）。
 
 ## 未实现（明确边界，不是遗忘）
 
 | 缺口 | 现状 | 影响 |
 |---|---|---|
-| 鉴权 | `X-Player-Id` / `X-Adventurer-Id` 假头 | 任意人可冒充他人下单/交付 |
-| 真实支付 | 直接调状态机，`payment` 表未写入 | 无幂等键，重复调用靠状态机拦 |
-| 管理端 CRUD | `service_item` / `category` 无写入接口 | 商品数据靠手写 SQL |
 | 缓存 | 未引入 Redis | 大厅每次查库 |
 | 前端 | 无 | 全部通过 OpenAPI 文档验证 |
 | 统计 / WebSocket 提醒 / 评价售后 | 无 | — |
+| 支付掉单处理 | 回调与超时关单竞态时事务回滚，payment 永远 pending | 真实场景需退款/人工流程 |
+| 外键约束 / alembic 迁移 | 应用层引用检查 | 历史脏数据可绕过 |
 
 ## 核心设计
 
