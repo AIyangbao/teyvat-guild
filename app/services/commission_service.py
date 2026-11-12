@@ -133,7 +133,8 @@ async def list_mine(db: AsyncSession, player_id: int, page: int, page_size: int,
 
     items_map = await _items_map(db,[o.id for o in orders])
     result = [HallOrderOut(
-        id=o.id, order_no=o.order_no,total_amount=o.total_amount,
+        id=o.id, order_no=o.order_no, status=o.status,
+        total_amount=o.total_amount,
         remark=o.remark, expect_time=o.expect_time, created_at=o.created_at,
         items=items_map[o.id],
     ) for o in orders]
@@ -162,7 +163,8 @@ async def list_hall(db: AsyncSession, page: int, page_size: int) -> tuple[int, l
     items_map = await _items_map(db, ids)
 
     result = [HallOrderOut(
-        id = o.id, order_no=o.order_no, total_amount=o.total_amount,
+        id = o.id, order_no=o.order_no, status=o.status,
+        total_amount=o.total_amount,
         remark=o.remark, expect_time=o.expect_time, created_at=o.created_at,
         items=items_map[o.id],
     ) for o in orders]

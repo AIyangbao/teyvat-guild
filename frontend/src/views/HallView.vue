@@ -26,7 +26,7 @@ async function load() {
 }
 onMounted(load)
 
-const itemsText = o => o.items.map(i => `${i.name}×${i.qty}`).join('，')
+const itemsText = o => o.items.map(i => `${i.name}×${i.quantity}`).join('，')
 const fmtTime = s => (s || '').slice(0, 19).replace('T', ' ')
 
 function onCreated(order) {

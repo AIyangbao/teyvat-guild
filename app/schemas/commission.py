@@ -22,6 +22,7 @@ class CommissionItemOut(BaseModel):
 class HallOrderOut(BaseModel):
     id: int
     order_no: str
+    status: str
     total_amount: Decimal
     remark: str
     expect_time: datetime | None
