@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from sqlalchemy import JSON, BigInteger, DateTime, Numeric, String
+from sqlalchemy import JSON, BigInteger, ForeignKey, DateTime, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.time_utils import utcnow
 from app.db import Base
@@ -9,7 +9,7 @@ class Payment(Base):
     __tablename__ = "payment"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    commission_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    commission_id: Mapped[int] = mapped_column(ForeignKey("commission.id"), nullable=False)
     out_trade_no: Mapped[str] = mapped_column(String(32), unique=True, nullable=False) # 幂等键
     amount: Mapped[Decimal] = mapped_column(Numeric(10,2), nullable=False)
     channel: Mapped[str] = mapped_column(String(20), nullable=False, default="mock")

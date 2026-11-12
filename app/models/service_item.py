@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from sqlalchemy import BigInteger, DateTime, Integer, Numeric, String, Text,Index
+from sqlalchemy import BigInteger, DateTime,  ForeignKey,Integer, Numeric, String, Text,Index
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.time_utils import utcnow
 from app.db import Base
@@ -10,7 +10,7 @@ class ServiceItem(Base):
     __table_args__ = (Index("idx_cat_status", "category_id", "status"),)
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    category_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    category_id: Mapped[int] = mapped_column(ForeignKey("category.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(80), nullable=False)
     description:Mapped[str | None] = mapped_column(Text, nullable=True)
     price: Mapped[Decimal] = mapped_column(Numeric(10,2), nullable=False)

@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from sqlalchemy import BigInteger, DateTime, Integer, Numeric, String,Index
+from sqlalchemy import BigInteger,  ForeignKey, DateTime, Integer, Numeric, String,Index
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.time_utils import utcnow
 from app.db import Base
@@ -17,8 +17,8 @@ class Commission(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     order_no: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
-    player_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    adventurer_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    player_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
+    adventurer_id: Mapped[int | None] = mapped_column(ForeignKey("adventurer.id"), nullable=True)
     game_uid: Mapped[str] = mapped_column(String(20), nullable=False)
     server: Mapped[str] = mapped_column(String(20), nullable=False)
     expect_time: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
