@@ -6,9 +6,9 @@ from app.core.exceptions import BizError
 from app.services import commission_service, commission_state
 
 class TestCreateOrder:
-    async def test_success(self, db, on_shelf_item):
+    async def test_success(self, db, on_shelf_item,player):
         order = await commission_service.create_order(
-            db, player_id=1,
+            db, player_id=player.id,
             item_inputs=[{"service_item_id": on_shelf_item.id, "qty": 2}],
             game_uid="100000001", server="天空岛",
         )
@@ -24,55 +24,55 @@ class TestCreateOrder:
         assert rows[0].snapshot_price == Decimal("12.50")
         assert rows[0].quantity == 2
 
-    async def test_item_invalid_when_missing(self, db, on_shelf_item):
+    async def test_item_invalid_when_missing(self, db, on_shelf_item, player):
         with pytest.raises(BizError) as e:
             await commission_service.create_order(
-                db, player_id=1,
+                db, player_id=player.id,
                 item_inputs=[{"service_item_id": 9999, "qty": 1}],
                 game_uid="1", server="天空岛",
             )
         assert e.value.code == "ITEM_INVALID"
 
-    async def test_item_invalid_when_off_shelf(self, db, on_shelf_item):
+    async def test_item_invalid_when_off_shelf(self, db, on_shelf_item, player):
         on_shelf_item.status = 0
         with pytest.raises(BizError) as e:
             await commission_service.create_order(
-                db, player_id=1,
+                db, player_id=player.id,
                 item_inputs=[{"service_item_id": on_shelf_item.id, "qty": 1}],
                 game_uid="1", server="天空岛",
             )
         assert e.value.code == "ITEM_INVALID"
 
     @pytest.mark.parametrize("qty", [0, 11])   # 边界两端都要测
-    async def test_qty_out_of_range(self, db, on_shelf_item, qty):
+    async def test_qty_out_of_range(self, db, on_shelf_item, qty, player):
         with pytest.raises(BizError) as e:
             await commission_service.create_order(
-                db, player_id=1,
+                db, player_id=player.id,
                 item_inputs=[{"service_item_id": on_shelf_item.id, "qty": qty}],
                 game_uid="1", server="天空岛",
             )
         assert e.value.code == "QTY_INVALID"
 
-    async def test_empty_items(self,db):
+    async def test_empty_items(self,db, player):
         with pytest.raises(BizError) as e:
-          await commission_service.create_order(db,1,[], "1", "天空岛")
+          await commission_service.create_order(db,player.id,[], "1", "天空岛")
         assert e.value.code == "BIZ_ERROR"
 
-    async def test_duplicate_items_tolerated(self,db, on_shelf_item):
+    async def test_duplicate_items_tolerated(self,db, on_shelf_item, player):
         """玩家把同一服务买两次是合法的：两条明细、金额翻倍。"""
         order = await commission_service.create_order(
-            db, 1,
+            db, player.id,
             [{"service_item_id": on_shelf_item.id, "qty": 1}] * 2,
             "1", "天空岛",
         )
         assert order.total_amount == Decimal("25.00")
 
 class TestTransition:
-    async def test_pay_then_illegal_again(self, db, on_shelf_item):
+    async def test_pay_then_illegal_again(self, db, on_shelf_item, player):
         order = await commission_service.create_order(
-            db, 1, [{"service_item_id": on_shelf_item.id, "qty": 1}], "1", "天空岛",
+            db, player.id, [{"service_item_id": on_shelf_item.id, "qty": 1}], "1", "天空岛",
         )
-        order = await commission_state.transition(db, order.id, "支付成功", operator_id=1, operator_role="player")
+        order = await commission_state.transition(db, order.id, "支付成功", operator_id=player.id, operator_role="player")
 
         assert order.status == "待接单"
         assert order.paid_at is not None
@@ -87,34 +87,34 @@ class TestTransition:
             await commission_state.transition(db, 999999, "支付成功")
         assert e.value.code == "ORDER_NOT_FOUND"
 
-    async def test_accept_conflict(self, db, on_shelf_item):
+    async def test_accept_conflict(self, db, on_shelf_item, player, adventurer_row):
         """抢完之后 CAS 条件不再满足 → 第二次必须 ACCEPT_CONFLICT。"""
         order = await commission_service.create_order(
-            db, 1, [{"service_item_id": on_shelf_item.id, "qty": 1}], "1", "天空岛",
+            db, player.id, [{"service_item_id": on_shelf_item.id, "qty": 1}], "1", "天空岛",
         )
-        order = await commission_state.transition(db, order.id, "支付成功", operator_id=1, operator_role="player")
+        order = await commission_state.transition(db, order.id, "支付成功", operator_id=player.id, operator_role="player")
 
-        order = await commission_state.accept_order(db,order.id, adventurer_id=1)
-        assert order.adventurer_id == 1
+        order = await commission_state.accept_order(db,order.id, adventurer_id=adventurer_row.id)
+        assert order.adventurer_id == adventurer_row.id
         assert order.status == "进行中"
         assert order.accepted_at is not None
 
         with pytest.raises(BizError) as e:
-            await commission_state.accept_order(db, order.id, adventurer_id=1)
+            await commission_state.accept_order(db, order.id, adventurer_id=adventurer_row.id)
         assert e.value.code == "ACCEPT_CONFLICT"
 
-    async def test_full_lifecycle(self, db, on_shelf_item):
+    async def test_full_lifecycle(self, db, on_shelf_item, player, adventurer_row):
         order = await commission_service.create_order(
-            db, 1, [{"service_item_id": on_shelf_item.id, "qty": 1}], "1", "天空岛"
+            db, player.id, [{"service_item_id": on_shelf_item.id, "qty": 1}], "1", "天空岛"
         )
         await commission_state.transition(db, order.id, "支付成功", operator_role="player")
-        await commission_state.accept_order(db, order.id, adventurer_id=200)
+        await commission_state.accept_order(db, order.id, adventurer_id=adventurer_row.id)
 
-        order = await commission_state.deliver_by_adventurer(db, order.id, adventurer_id=200)
+        order = await commission_state.deliver_by_adventurer(db, order.id, adventurer_id=adventurer_row.id)
         assert order.status == "待验收"
         assert order.finished_at is not None
 
-        order = await commission_state.confirm_by_player(db, order.id, player_id=1)
+        order = await commission_state.confirm_by_player(db, order.id, player_id=player.id)
         assert order.status == "已完成"
 
         order = await commission_state.settle(db, order.id)
@@ -122,20 +122,20 @@ class TestTransition:
         assert order.settled_at is not None
 
 
-    async def test_deliver_by_wrong_adventurer_403(self, db, on_shelf_item):
+    async def test_deliver_by_wrong_adventurer_403(self, db, on_shelf_item, player,adventurer_row):
         order = await commission_service.create_order(
-            db, 1, [{"service_item_id": on_shelf_item.id, "qty": 1}], "1", "天空岛"
+            db, player.id, [{"service_item_id": on_shelf_item.id, "qty": 1}], "1", "天空岛"
         )
         await commission_state.transition(db, order.id, "支付成功", operator_role="player")
-        await commission_state.accept_order(db, order.id, adventurer_id=200)
+        await commission_state.accept_order(db, order.id, adventurer_id=adventurer_row.id)
         with pytest.raises(BizError) as e:
-            order = await commission_state.deliver_by_adventurer(db, order.id, adventurer_id=999)
+            order = await commission_state.deliver_by_adventurer(db, order.id, adventurer_id=adventurer_row.id +10000)
         assert e.value.code == "FORBIDDEN"
 
 class TestHall:
-    async def test_shown_after_then_hidden_after_accept(self, db, on_shelf_item):
+    async def test_shown_after_then_hidden_after_accept(self, db, on_shelf_item, player, adventurer_row):
         order = await commission_service.create_order(
-            db, player_id=1,
+            db, player_id=player.id,
             item_inputs=[{"service_item_id": on_shelf_item.id, "qty": 2}],
             game_uid="100000001", server="天空岛",
         )
@@ -145,7 +145,7 @@ class TestHall:
 
         # 支付后进入待接单，出现在大厅
         await commission_state.transition(db, order.id, "支付成功",
-                                          operator_id=1, operator_role="player")
+                                          operator_id=player.id, operator_role="player")
         total1, rows1 = await commission_service.list_hall(db, page=1, page_size=20)
         assert total1 >= 1
         shown = next(r for r in rows1 if r.id == order.id)
@@ -153,22 +153,22 @@ class TestHall:
         assert shown.items[0].quantity == 2
 
         # 被抢走后从大厅消失
-        await commission_state.accept_order(db, order.id, adventurer_id=200)
+        await commission_state.accept_order(db, order.id, adventurer_id=adventurer_row.id)
         _, rows2 = await commission_service.list_hall(db, page=1, page_size=20)
         assert all(r.id != order.id for r in rows2)
         
         
 
-    async def test_pagination_slices(self, db, on_shelf_item):
+    async def test_pagination_slices(self, db, on_shelf_item, player):
          """造 3 单，page_size=2 时第一页 2 条、total 是全部。"""
          for _ in range(3):
              o = await commission_service.create_order(
-                 db, player_id=1,
+                 db, player_id=player.id,
                  item_inputs=[{"service_item_id": on_shelf_item.id, "qty": 1}],
                  game_uid="1", server="天空岛",
              )
              await commission_state.transition(db, o.id, "支付成功",
-                                               operator_id=1, operator_role="player")
+                                               operator_id=player.id, operator_role="player")
          total, rows = await commission_service.list_hall(db, page=1, page_size=2)
          assert len(rows) == 2 and total >= 3
          _, rows2 = await commission_service.list_hall(db, page=2, page_size=2)
@@ -176,18 +176,18 @@ class TestHall:
          assert all(r.id not in {x.id for x in rows} for r in rows2)
 
 class TestDetailAndMine:
-    async def _paid_order(self, db, on_shelf_item, player_id: int = 1):
+    async def _paid_order(self, db, on_shelf_item, player):
         o = await commission_service.create_order(
-            db, player_id=player_id,
+            db, player_id=player.id,
             item_inputs=[{"service_item_id": on_shelf_item.id, "qty": 1}],
             game_uid="1", server="天空岛",
         )
         await commission_state.transition(db, o.id, "支付成功",
-                                          operator_id=player_id, operator_role="player")
+                                          operator_id=player.id, operator_role="player")
         return o
 
-    async def test_detail_has_items_and_timeline(self, db, on_shelf_item):
-        order = await self._paid_order(db, on_shelf_item)
+    async def test_detail_has_items_and_timeline(self, db, on_shelf_item, player):
+        order = await self._paid_order(db, on_shelf_item, player)
         d = await commission_service.get_detail(db, order.id)
         assert d.status == "待接单"
         assert len(d.items) == 1
@@ -201,22 +201,22 @@ class TestDetailAndMine:
             await commission_service.get_detail(db, 999999)
         assert e.value.code == "ORDER_NOT_FOUND"
 
-    async def test_mine_filters_by_player(self, db, on_shelf_item):
-        mine = await self._paid_order(db, on_shelf_item, player_id=1)
-        other = await self._paid_order(db, on_shelf_item, player_id=2)
+    async def test_mine_filters_by_player(self, db, on_shelf_item, player, another_player):
+        mine = await self._paid_order(db, on_shelf_item, player)
+        other = await self._paid_order(db, on_shelf_item, another_player)
 
-        total,rows = await commission_service.list_mine(db, 1, 1, 20)
+        total,rows = await commission_service.list_mine(db, player.id, 1, 20)
         ids = [r.id for r in rows]
         assert mine.id in ids and other.id not in ids
 
-    async def test_mine_status_filter(self, db, on_shelf_item):
-        order = await self._paid_order(db, on_shelf_item)
-        _, rows = await commission_service.list_mine(db, 1, 1, 20, status="待接单")
+    async def test_mine_status_filter(self, db, on_shelf_item, player):
+        order = await self._paid_order(db, on_shelf_item, player)
+        _, rows = await commission_service.list_mine(db, player.id, 1, 20, status="待接单")
         assert any(r.id == order.id for r in rows)
-        _, rows2 = await commission_service.list_mine(db, 1, 1, 20, status="已完成")
+        _, rows2 = await commission_service.list_mine(db, player.id, 1, 20, status="已完成")
         assert all(r.id != order.id for r in rows2)
 
-    async def test_mine_rejects_unknown_status(self, db):
+    async def test_mine_rejects_unknown_status(self, db, player):
         with pytest.raises(BizError) as e:
-            await commission_service.list_mine(db, 1, 1, 20, status="随便写")
+            await commission_service.list_mine(db, player.id, 1, 20, status="随便写")
         assert e.value.code == "STATE_INVALID"

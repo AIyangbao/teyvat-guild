@@ -22,3 +22,41 @@ async def on_shelf_item(db):
     db.add(item)
     await db.flush()
     return item
+
+import uuid
+from app.models import ServiceItem, User, Adventurer
+
+def _new_user() -> User:
+    return User(
+        phone="139" + uuid.uuid4().hex[:8],
+        nickname="测试玩家",
+        password_hash="x",
+    )
+@pytest.fixture
+async def player(db):
+    """测试玩家：随机手机号防撞种子数据，flush 拿 id 后返回。"""
+    user = _new_user()
+    db.add(user)
+    await db.flush()
+    return user
+
+@pytest.fixture
+async def another_player(db):
+    """测试玩家：随机手机号防撞种子数据，flush 拿 id 后返回。"""
+    user = _new_user()
+    db.add(user)
+    await db.flush()
+    return user
+
+@pytest.fixture
+async def adventurer_row(db, player):
+     """测试冒险家：挂在 player 上（user_id 唯一约束 + FK 都满足）。"""
+     adv = Adventurer(
+         user_id=player.id,
+         game_uid=uuid.uuid4().hex[:10],
+         server="天空岛",
+         game_nickname="测试冒险家",
+     )
+     db.add(adv)
+     await db.flush()
+     return adv

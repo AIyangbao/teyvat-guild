@@ -61,14 +61,14 @@ class TestItem:
                 category_id=999999, name="孤儿", price=Decimal("1.00")))
         assert e.value.code == "CATEGORY_NOT_FOUND"
 
-    async def test_price_change_does_not_affect_history(self, db):
+    async def test_price_change_does_not_affect_history(self, db, player):
         """改价只影响新订单：历史明细存的是下单那一刻的快照价。"""
         cat = await _make_category(db, "快照")
         item = await catalog_service.create_item(db, ItemIn(
             category_id= cat.id, name="深渊代打", price=Decimal("68.00")))
 
         order = await commission_service.create_order(
-            db, player_id=1,
+            db, player_id=player.id,
             item_inputs=[{"service_item_id": item.id, "qty": 1}],
             game_uid="100000001", server="天空岛",
         )
