@@ -1,0 +1,2 @@
+# 强制 .sh 永远 LF：Windows 检出时 CRLF 会进镜像，容器里报 "\r: not found"
+*.sh text eol=lf

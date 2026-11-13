@@ -1,0 +1,52 @@
+# 生产栈：mysql(仅内网) + backend(启动自动迁移) + frontend(nginx: 静态 + 反代)
+# 用法：docker compose up -d --build
+# ${VAR} 从同目录 .env 取值（compose 自动加载）
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: teyvat-mysql-prod
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      TZ: Asia/Shanghai
+    volumes:
+      - teyvat_mysql_data:/var/lib/mysql
+    healthcheck:
+      # $$ 转义：让 mysqladmin 读容器自己的环境变量，密码不落在 compose 里
+      test: ["CMD-SHELL", "mysqladmin ping -h127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\""]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    # 不映射宿主端口：数据库只在 compose 内网可达（对比 dev 版的 3308）
+
+  backend:
+    build: .
+    container_name: teyvat-backend
+    restart: unless-stopped
+    environment:
+      DB_HOST: mysql          # 容器网络里服务名就是地址
+      DB_PORT: "3306"         # 容器内直连 3306（.env 里的 3308 是给宿主机开发用的）
+      DB_USER: root
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-1440}
+      PAY_CALLBACK_SECRET: ${PAY_CALLBACK_SECRET:-mock-callback-secret-change-me}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    expose:
+      - "8000"                # 只在 compose 内网暴露，不占宿主机端口
+
+  frontend:
+    build: ./frontend
+    container_name: teyvat-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  teyvat_mysql_data:

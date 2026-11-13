@@ -1,0 +1,11 @@
+venv/
+.git/
+**/__pycache__/
+*.pyc
+.env
+app/tests/
+docs/
+scripts/
+DESIGN.md
+SCHEMA.md
+README.md
