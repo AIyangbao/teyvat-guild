@@ -44,7 +44,7 @@ services:
     container_name: teyvat-frontend
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "${HTTP_PORT:-80}:80"     # 宿主机端口参数化：与博客栈同跑时 .env 里设 HTTP_PORT=8080
     depends_on:
       - backend
 
