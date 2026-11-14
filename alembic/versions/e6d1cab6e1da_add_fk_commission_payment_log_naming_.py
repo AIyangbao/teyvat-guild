@@ -18,17 +18,52 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _index_exists(table: str, index: str) -> bool:
+    """查元数据目录：这个索引现在在不在库里。"""
+    bind = op.get_bind()   # 拿到迁移当前用的连接
+    return bind.execute(
+        sa.text(
+            "SELECT COUNT(*) FROM information_schema.STATISTICS "
+            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :t AND INDEX_NAME = :n"
+        ),
+        {"t": table, "n": index},
+    ).scalar() > 0
+
+
+def _constraint_exists(table: str, name: str) -> bool:
+    """查元数据目录：FK / UNIQUE 约束在不在。"""
+    bind = op.get_bind()
+    return bind.execute(
+        sa.text(
+            "SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS "
+            "WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = :t AND CONSTRAINT_NAME = :n"
+        ),
+        {"t": table, "n": name},
+    ).scalar() > 0
+
+
 def upgrade() -> None:
-    op.create_foreign_key(op.f('fk_commission_player_id_user'), 'commission', 'user', ['player_id'], ['id'])
-    op.create_foreign_key(op.f('fk_commission_adventurer_id_adventurer'), 'commission', 'adventurer', ['adventurer_id'], ['id'])
-    op.create_foreign_key(op.f('fk_commission_item_commission_id_commission'), 'commission_item', 'commission', ['commission_id'], ['id'])
-    op.create_foreign_key(op.f('fk_commission_log_commission_id_commission'), 'commission_log', 'commission', ['commission_id'], ['id'])
-    op.drop_index(op.f('out_trade_no'), table_name='payment')
-    op.create_unique_constraint(op.f('uq_payment_out_trade_no'), 'payment', ['out_trade_no'])
-    op.create_foreign_key(op.f('fk_payment_commission_id_commission'), 'payment', 'commission', ['commission_id'], ['id'])
-    op.drop_index(op.f('phone'), table_name='user')
-    op.create_unique_constraint(op.f('uq_user_phone'), 'user', ['phone'])
-    # ### end Alembic commands ###
+    # FK：存在才跳过（全新库跑不过的场景，做了全套幂等）
+    if not _constraint_exists("commission", "fk_commission_player_id_user"):
+        op.create_foreign_key(op.f('fk_commission_player_id_user'), 'commission', 'user', ['player_id'], ['id'])
+    if not _constraint_exists("commission", "fk_commission_adventurer_id_adventurer"):
+        op.create_foreign_key(op.f('fk_commission_adventurer_id_adventurer'), 'commission', 'adventurer', ['adventurer_id'], ['id'])
+    if not _constraint_exists("commission_item", "fk_commission_item_commission_id_commission"):
+        op.create_foreign_key(op.f('fk_commission_item_commission_id_commission'), 'commission_item', 'commission', ['commission_id'], ['id'])
+    if not _constraint_exists("commission_log", "fk_commission_log_commission_id_commission"):
+        op.create_foreign_key(op.f('fk_commission_log_commission_id_commission'), 'commission_log', 'commission', ['commission_id'], ['id'])
+    if not _constraint_exists("payment", "fk_payment_commission_id_commission"):
+        op.create_foreign_key(op.f('fk_payment_commission_id_commission'), 'payment', 'commission', ['commission_id'], ['id'])
+    # index→unique swap：只在"历史遗留索引"真的存在时才清理（全新库 baseline 直接建了 uq_，这里整对跳过）
+    if _index_exists("payment", "out_trade_no"):
+        op.drop_index(op.f('out_trade_no'), table_name='payment')
+    if not _constraint_exists("payment", "uq_payment_out_trade_no"):
+        op.create_unique_constraint(op.f('uq_payment_out_trade_no'), 'payment', ['out_trade_no'])
+    if _index_exists("user", "phone"):
+        op.drop_index(op.f('phone'), table_name='user')
+    if not _constraint_exists("user", "uq_user_phone"):
+        op.create_unique_constraint(op.f('uq_user_phone'), 'user', ['phone'])
+
 
 
 def downgrade() -> None:
