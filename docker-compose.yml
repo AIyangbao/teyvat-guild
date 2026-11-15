@@ -20,6 +20,20 @@ services:
       retries: 20
     # 不映射宿主端口：数据库只在 compose 内网可达（对比 dev 版的 3308）
 
+  redis:
+    image: redis:7-alpine
+    container_name: teyvat-redis-prod
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]   # AOF 持久化：重启不丢热缓存写
+    volumes:
+      - teyvat_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # 不映射宿主端口：仅 compose 内网可达（无密码可接受的前提就是"外网摸不到"）
+
   backend:
     build: .
     container_name: teyvat-backend
@@ -33,8 +47,12 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-1440}
       PAY_CALLBACK_SECRET: ${PAY_CALLBACK_SECRET:-mock-callback-secret-change-me}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
     depends_on:
       mysql:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     expose:
       - "8000"                # 只在 compose 内网暴露，不占宿主机端口
@@ -50,3 +68,4 @@ services:
 
 volumes:
   teyvat_mysql_data:
+  teyvat_redis_data:

@@ -6,9 +6,10 @@ from app.config import settings
 from app.core.time_utils import now_plus, utcnow
 from app.core.exceptions import BizError
 from app.core.state_machine import PENDING_ACCEPT, ALL_STATES
+from app.core.cache import cache_get_json, cache_set_json
 from app.models import Commission, CommissionItem, ServiceItem, CommissionLog
 from app.schemas.commission import (CommissionDetailOut, CommissionItemOut, CommissionLogOut,HallOrderOut)
-
+from app.services.cache_keys import HALL_CACHE_PREFIX, HALL_CACHE_TTL
 
 def _gen_order_no() -> str:
     """时间戳 + 随机尾巴：可读、趋势递增、基本不撞。
@@ -144,7 +145,16 @@ async def list_hall(db: AsyncSession, page: int, page_size: int) -> tuple[int, l
     """委托大厅：待接单的分页列表，最新的在前。命中 idx_hall(status, created_at)。
 
     明细用第二条 IN 查询拼装，固定 2 条 SQL——循环内逐单查就是 N+1。
+    读路径：缓存命中直接回；miss 查库后回填（旁路缓存模式）。
     """
+    # 先探缓存（Redis 故障时返回 None = 当 miss，天然降级直查库）
+    key = f"{HALL_CACHE_PREFIX}:{page}:{page_size}"
+    cached = await cache_get_json(key)
+    if cached is not None:
+        # dict 转回 Pydantic 模型：让调用方拿到的形态和直查库完全一致，
+        # 路由层对"有没有缓存"零感知（ISO 字符串由 Pydantic 自动 parse 回 datetime）
+        return cached["total"], [HallOrderOut(**i) for i in cached["items"]]
+    
     cond = Commission.status == PENDING_ACCEPT
 
     total = (await db.execute(
@@ -168,4 +178,10 @@ async def list_hall(db: AsyncSession, page: int, page_size: int) -> tuple[int, l
         remark=o.remark, expect_time=o.expect_time, created_at=o.created_at,
         items=items_map[o.id],
     ) for o in orders]
+
+    # 回填缓存（return 之前）。model_dump(mode="json") 把 datetime 转 ISO 字符串
+    await cache_set_json(key, {
+        "total": total,
+        "items": [o.model_dump(mode="json") for o in result],
+    }, ttl=HALL_CACHE_TTL)
     return total, result

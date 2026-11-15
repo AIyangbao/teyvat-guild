@@ -17,6 +17,12 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+  redis:
+    image: redis:7-alpine
+    container_name: teyvat-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"      # 映射宿主机给本地开发直连；若博客 redis 已占 6379，改 "6380:6379" 且 .env REDIS_PORT 改 6380
 
 volumes:
   teyvat_mysql_data:

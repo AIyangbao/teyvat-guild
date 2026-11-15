@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 120
 
+        # Redis（大厅缓存）
+    redis_host: str = "127.0.0.1"
+    redis_port: int = 6379
+    redis_db: int = 0
+    redis_password: str = ""
+
     @property
     def db_url(self) -> str:
         return (f"mysql+aiomysql://{self.db_user}:{self.db_password}"

@@ -9,3 +9,4 @@ pydantic==2.14.1
 pydantic-settings==2.16.0
 bcrypt==5.0.0
 PyJWT==2.15.1
+redis==8.1.0

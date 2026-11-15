@@ -3,6 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import BizError
 from app.core.state_machine import IllegalTransition, next_status,IN_PROGRESS,PENDING_ACCEPT
 from app.core.time_utils import now_plus, utcnow
+from app.core.cache import cache_delete_prefix
+from app.services.cache_keys import HALL_CACHE_PREFIX
 from app.models import Commission, CommissionLog
 from app.config import settings
 # 事件 → 该记的时间戳字段。只列「需要记时刻」的，其余不填
@@ -49,6 +51,7 @@ async def transition(db: AsyncSession, order_id: int, event: str, *,
         operator_role=operator_role,
     ))
     await db.flush()
+    await cache_delete_prefix(HALL_CACHE_PREFIX)
     return order
 
 async def accept_order(db: AsyncSession, order_id: int, adventurer_id: int) -> Commission:
@@ -81,6 +84,7 @@ async def accept_order(db: AsyncSession, order_id: int, adventurer_id: int) -> C
         operator_role="adventurer",
     ))
     await db.flush()
+    await cache_delete_prefix(HALL_CACHE_PREFIX)
     return order
 
 async def confirm_by_player(db: AsyncSession, order_id: int, player_id: int) -> Commission:
