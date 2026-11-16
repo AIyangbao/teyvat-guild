@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends,  Query, HTTPException
 from app.db import DB
 from app.core.exceptions import BizError
-from app.services import commission_service,commission_state, payment_service
+from app.services import commission_service,commission_state, payment_service, review_service
 from app.schemas.commission import OrderCreateIn, HallPageOut, CommissionDetailOut
 from app.schemas.payment import PayCreateOut
+from app.schemas.review import ReviewIn, ReviewOut
 from app.core.deps import get_current_adventurer, get_current_player
 router = APIRouter(prefix="/commissions",tags=["委托"])
 
@@ -106,3 +107,22 @@ async def detail(order_id: int, db=DB):
     except BizError as e:
         status = 404 if e.code == "ORDER_NOT_FOUND" else 400
         raise HTTPException(status_code=status, detail={"code": e.code, "message": str(e)})
+
+@router.post("/{order_id}/review", response_model=ReviewOut)
+async def create_review(order_id: int, data:ReviewIn, db=DB,
+                        player_id: int = Depends(get_current_player)):
+    try:
+        review, rating = await review_service.create_review(
+            db, order_id, player_id, data.score, data.content)
+    except BizError as e:
+        status = (409 if e.code in ("REVIEW_STATE_ILLEGAL", "REVIEW_EXISTS")
+                  else 404 if e.code == "ORDER_NOT_FOUND"
+                  else 403 if e.code == "FORBIDDEN"
+                  else 400)
+        raise HTTPException(status_code=status,
+                            detail={"code": e.code, "message": str(e)})
+    return ReviewOut(
+        id=review.id, commission_id=review.commission_id, score=review.score,
+        content=review.content, created_at=review.created_at,
+        adventurer_rating=rating,
+    )

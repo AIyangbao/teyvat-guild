@@ -6,6 +6,6 @@ from app.models.commission import Commission
 from app.models.commission_item import CommissionItem
 from app.models.payment import Payment
 from app.models.commission_log import CommissionLog
-
+from app.models.review import Review
 __all__ = ["User", "Adventurer", "Category", "ServiceItem",
-           "Commission", "CommissionItem", "Payment", "CommissionLog"]
+           "Commission", "CommissionItem", "Payment", "CommissionLog", "Review"]
