@@ -185,3 +185,35 @@ async def list_hall(db: AsyncSession, page: int, page_size: int) -> tuple[int, l
         "items": [o.model_dump(mode="json") for o in result],
     }, ttl=HALL_CACHE_TTL)
     return total, result
+
+async def list_by_adventurer(db: AsyncSession, adventurer_id: int,
+                             page: int, page_size: int,
+                             status: str | None = None
+                             ) -> tuple[int, list[HallOrderOut]]:
+    """冒险家的接单列表：按 adventurer_id 过滤，可选状态。
+    命中 idx_adventurer(adventurer_id, status)——建模型时就预留的索引，今天才兑现。"""
+    if status is not None and status not in ALL_STATES:
+        raise BizError("非法状态筛选", code="STATE_INVALID")
+
+    cond = [Commission.adventurer_id == adventurer_id]
+    if status:
+        cond.append(Commission.status == status)
+
+    total = (await db.execute(
+        select(func.count()).select_from(Commission).where(*cond)
+    )).scalar_one()
+
+    orders = (await db.execute(
+        select(Commission).where(*cond)
+        .order_by(Commission.created_at.desc())
+        .offset((page-1)*page_size).limit(page_size)
+    )).scalars().all()
+
+    items_map = await _items_map(db, [o.id for o in orders])
+    result = [HallOrderOut(
+        id=o.id, order_no=o.order_no, status=o.status,
+        total_amount=o.total_amount,
+        remark=o.remark, expect_time=o.expect_time, created_at=o.created_at,
+        items=items_map[o.id],
+    )for o in orders]
+    return total, result

@@ -7,19 +7,19 @@
 """
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from datetime import timedelta
 from app.config import settings
 from app.core.exceptions import BizError
-from app.core.state_machine import PENDING_ACCEPT, PENDING_PAY
+from app.core.state_machine import PENDING_ACCEPT, PENDING_PAY, COMPLETED
 from app.core.time_utils import now_plus, utcnow
 from app.db import AsyncSessionLocal, engine
 from app.models import Commission
 from app.services.commission_state import transition
 from app.services.commission_timeout import close_pay_timeout, retry_accept_timeout
-
+from app.services.commission_state import settle_order
 BATCH = 100 # 单轮上限：积压再多也分批消化，防止占满连接池
 
-async def _candidates(db: AsyncSession) -> tuple[list[int],list[int]]:
+async def _candidates(db: AsyncSession) -> tuple[list[int],list[int],list[int]]:
     """只读 id，不加载 ORM 实体。两类过期单一次取回。"""
     pay = (await db.execute(
         select(Commission.id)
@@ -36,7 +36,15 @@ async def _candidates(db: AsyncSession) -> tuple[list[int],list[int]]:
         .order_by(Commission.accept_deadline)
         .limit(BATCH)
     )).scalars().all()
-    return list(pay), list(accept)
+    settle = (await db.execute(
+        select(Commission.id)
+        .where(Commission.status == COMPLETED,
+               Commission.finished_at.is_not(None),
+               Commission.finished_at < utcnow() - timedelta(days=settings.after_sale_days))
+        .order_by(Commission.finished_at)
+        .limit(BATCH)
+    )).scalars().all()
+    return list(pay), list(accept), list(settle)
 
 async def _run_one(handler, order_id: int) -> bool:
      """单订单：独立 session + 独立事务。handler 是上面两个 service 函数之一。"""
@@ -51,7 +59,7 @@ async def _run_one(handler, order_id: int) -> bool:
          
 async def scan_once() -> dict[str, int]:
     async with AsyncSessionLocal() as db:
-        pay_ids, accept_ids = await _candidates(db)
+        pay_ids, accept_ids, settle_ids = await _candidates(db)
 
     closed = 0
     for oid in pay_ids:
@@ -59,7 +67,11 @@ async def scan_once() -> dict[str, int]:
     retried = 0
     for oid in accept_ids:
         retried += await _run_one(retry_accept_timeout, oid)
-    return {"pay_timeout_closed": closed, "accept_timeout_retried": retried}
+    settled = 0
+    for oid in settle_ids:
+        settled += await _run_one(settle_order, oid)
+    return {"pay_timeout_closed": closed, "accept_timeout_retried": retried,
+            "settled": settled}
 
 async def _main() -> None:
     try:

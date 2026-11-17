@@ -117,7 +117,7 @@ class TestTransition:
         order = await commission_state.confirm_by_player(db, order.id, player_id=player.id)
         assert order.status == "已完成"
 
-        order = await commission_state.settle(db, order.id)
+        order = await commission_state.settle_order(db, order.id)
         assert order.status == "已结算"
         assert order.settled_at is not None
 

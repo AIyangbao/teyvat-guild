@@ -100,6 +100,21 @@ async def my_orders(page: int = Query(1, ge=1),
                             detail={"code": e.code, "message": str(e)})
     return HallPageOut(total=total, items=rows)
 
+@router.get("/accepted", response_model=HallPageOut)
+async def accepted_orders(page: int = Query(1, ge=1),
+                          page_size: int = Query(20, ge=1, le=50),
+                          status: str | None = Query(None),
+                          db=DB,
+                          adventurer_id: int = Depends(get_current_adventurer)):
+    """冒险家侧：我接的委托（可按状态过滤：进行中/已完成/已结算…）。"""
+    try:
+        total, rows = await commission_service.list_by_adventurer(
+            db, adventurer_id, page, page_size, status)
+    except BizError as e:
+        raise HTTPException(status_code=400,
+                            detail={"code":e.code, "message": str(e)})
+    return HallPageOut(total=total, items=rows)
+
 @router.get("/{order_id}", response_model=CommissionDetailOut)
 async def detail(order_id: int, db=DB):
     try:

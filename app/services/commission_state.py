@@ -5,7 +5,7 @@ from app.core.state_machine import IllegalTransition, next_status,IN_PROGRESS,PE
 from app.core.time_utils import now_plus, utcnow
 from app.core.cache import cache_delete_prefix
 from app.services.cache_keys import HALL_CACHE_PREFIX
-from app.models import Commission, CommissionLog
+from app.models import Commission, CommissionLog, Adventurer
 from app.config import settings
 # 事件 → 该记的时间戳字段。只列「需要记时刻」的，其余不填
 _EVENT_TIMESTAP = {
@@ -111,7 +111,20 @@ async def deliver_by_adventurer(db: AsyncSession, order_id: int, adventurer_id: 
     return await transition(db, order_id, "提交交付",
                             operator_id=adventurer_id, operator_role="adventurer")
 
-async def settle(db: AsyncSession, order_id: int) -> Commission:
-    """结算：平台发起。仅供定时任务/后台调用，不暴露公网接口。"""
-    return await transition(db, order_id, "结算", operator_role="system")
+async def settle_order(db: AsyncSession, order_id: int) -> Commission:
+    """结算 = 状态归档 + 完单数入账。由扫描器调用，每单独立事务，不 commit。"""
+    order = await transition(db, order_id, "结算", operator_role="system")
+    aid = order.adventurer_id
+    # 防御：能走到 COMPLETED 的单必经抢单，理论上有冒险家。真没有就报错别硬撑
+    if aid is None:
+        raise BizError("该委托没有接单冒险家,无法结算", code="SETTLE_NO_ADVENTURER")
+
+    # 原子自增：数据库内完成读改写，并发结算也不会丢计数
+    await db.execute(
+        update(Adventurer)
+        .where(Adventurer.id == aid)
+        .values(finished_count=Adventurer.finished_count + 1)
+        .execution_options(synchronize_session="fetch")
+    )
+    return order
 
