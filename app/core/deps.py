@@ -62,3 +62,15 @@ async def get_current_adventurer(
                             detail={"code": "ROLE_FORBIDDEN",
                                     "message": "尚未开通冒险者档案"})
     return adv
+
+async def require_admin(user: User = Depends(get_current_user)) -> User:
+    """管理端写操作的统一闸门。
+    401（没登录/凭证失效）由 get_current_user 负责；这里只管 403（登录了但角色不对）。
+    返回 User 而非 id：将来记操作日志能直接用，不用回查。"""
+    if user.role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "ROLE_FORBIDDEN", "message": "需要管理员身份"},
+        )
+    return user
+    
