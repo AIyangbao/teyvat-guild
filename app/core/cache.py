@@ -9,22 +9,34 @@
 """
 import json
 from redis import asyncio as aioredis
-
+from redis.backoff import NoBackoff
+from redis.retry import Retry
 from app.config import settings
 
-_pool: aioredis.Redis | None = None
+def _new_client() -> aioredis.Redis:
+  """唯一的客户端构造入口——所有参数只在这里写一次，
+  避免某条分支漏参数导致"配置漂移"（今天这个 26s 坑就是漂移的产物）"""
+  return aioredis.Redis(
+    host=settings.redis_host,
+    port=settings.redis_port,
+    db=settings.redis_db,
+    password=settings.redis_password or None,
+    decode_responses=True,
+    # 降级必须"快失败"：0.5s 连不上就放弃，业务退回直查库
+    socket_connect_timeout=0.5,
+    socket_timeout=0.5,
+    # redis-py 8 默认带指数退避重试，一次连不上会拖成 10~26s，必须显式关掉
+    retry=Retry(NoBackoff(), 0),
+    retry_on_error=[],
+   )
+
+_pool = _new_client()
 
 def get_redis() -> aioredis.Redis:
     """惰性单例：首次调用才建连接池。"""
     global _pool
     if _pool is None:
-        _pool = aioredis.Redis(
-            host=settings.redis_host,
-            port=settings.redis_port,
-            db=settings.redis_db,
-            password=settings.redis_password or None, # 空串转 None，否则会拿 "" 当密码
-            decode_responses=True,
-        )
+        _pool = _new_client()
     return _pool
 
 async def cache_get_json(key: str):

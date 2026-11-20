@@ -44,7 +44,7 @@ async def aacept(order_id: int,
     try:
         order = await commission_state.accept_order(db, order_id, adventurer_id)
     except BizError as e:
-        status = (409 if e.code == "STATE_ILLEGAL" 
+        status = (409 if e.code in ("STATE_ILLEGAL", "ACCEPT_CONFLICT") 
                   else 404 if e.code == "ORDER_NOT_FOUND" 
                   else 403 if e.code == "FORBIDDEN"
                   else 400)
