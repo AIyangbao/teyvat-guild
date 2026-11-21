@@ -4,8 +4,10 @@ import { auth } from '../stores/auth'
 const routes = [
   { path: '/login', name: 'login', component: () => import('../views/LoginView.vue') },
   { path: '/', name: 'hall', component: () => import('../views/HallView.vue') },
-  { path: '/orders', name: 'orders', component: () => import('../views/OrdersView.vue'), meta: { auth: true } },
+  { path: '/orders', name: 'orders', component: () => import('../views/OrdersView.vue'), meta: { auth: true, player: true } },
+  // 详情页不设角色守卫：详情接口公开，冒险家也要从「我的接单」点进来看自己接的单
   { path: '/orders/:id', name: 'orderDetail', component: () => import('../views/OrderDetailView.vue'), meta: { auth: true } },
+  { path: '/accepted', name: 'accepted', component: () => import('../views/AcceptedView.vue'), meta: { auth: true, adventurer: true } },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 
@@ -13,6 +15,10 @@ const router = createRouter({ history: createWebHistory(), routes })
 
 router.beforeEach(to => {
   if (to.meta.auth && !auth.token) return '/login'
+  // 前端只做体验层拦截（别让人看到进不去的入口）；
+  // 真正的角色校验在后端 get_current_player / get_current_adventurer
+  if (to.meta.player && auth.user?.role !== 'player') return '/'
+  if (to.meta.adventurer && auth.user?.role !== 'adventurer') return '/'
 })
 
 export default router

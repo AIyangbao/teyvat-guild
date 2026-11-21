@@ -3,8 +3,10 @@ import { onMounted, reactive, ref } from 'vue'
 import { listMine } from '../api/commission'
 import PayDialog from '../components/PayDialog.vue'
 
-// 后端状态机 9 态，玩家视角常用的筛选项
-const STATUS = ['待支付', '待接单', '进行中', '已交付', '已完成', '已结算', '已取消', '已关闭']
+// 与后端 app/core/state_machine.py 的 ALL_STATES 逐字对齐（9 态）。
+// 后端 list_mine 会校验白名单，写错的状态（如旧版的「已交付」）会 400 STATE_INVALID
+const STATUS = ['待支付', '待接单', '进行中', '待验收', '已完成',
+                '已结算', '已取消', '已关闭', '争议中']
 
 const rows = ref([])
 const total = ref(0)
@@ -34,8 +36,8 @@ const fmtTime = s => (s || '').slice(0, 19).replace('T', ' ')
 
 const statusTag = s => ({
   待支付: 'warning', 待接单: 'primary', 进行中: 'primary',
-  已交付: 'success', 已完成: 'success', 已结算: 'success',
-  已取消: 'info', 已关闭: 'info',
+  待验收: 'warning', 已完成: 'success', 已结算: 'success',
+  已取消: 'info', 已关闭: 'info', 争议中: 'danger',
 }[s] || 'info')
 
 function goPay(orderId) {

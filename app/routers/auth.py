@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db import DB
-from app.models import User
+from app.models import Adventurer,User
 from app.schemas.auth import LoginIn, RegisterIn, TokenOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -23,7 +23,7 @@ async def register(data: RegisterIn, db: AsyncSession = DB):
                                       "message": "手机号已注册"})
 
      user = User(phone=data.phone, nickname=data.nickname,
-                 password_hash=hash_password(data.password), role="player")
+                 password_hash=hash_password(data.password), role=data.role)
      db.add(user)
      try:
        await db.flush()
@@ -31,6 +31,23 @@ async def register(data: RegisterIn, db: AsyncSession = DB):
           raise HTTPException(status_code=409,
                               detail={"code": "PHONE_DUPLICATE",
                                       "message": "手机号已注册"})
+
+     if data.role == "adventurer":
+          # 与 User 同一事务：任一步失败，get_db 的 rollback 把两个都撤掉
+          adv = Adventurer(
+               user_id=user.id,
+               game_uid=data.game_uid,
+               server=data.server,
+               game_nickname=data.game_nickname,
+          )
+          db.add(adv)
+          try:
+               await db.flush()
+          except IntegrityError:
+               # uk_game_uid(game_uid, server) 撞了；并发下的最后防线
+               raise HTTPException(status_code=409,
+                                   detail={"code": "GAME_UID_DUPLICATE",
+                                           "message": "该游戏 UID 已被注册"})
 
      return TokenOut(access_token=create_access_token(user.id, user.role),
                      user_id=user.id, role=user.role, nickname=user.nickname)
