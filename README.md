@@ -38,7 +38,7 @@
 
 ### 前端
 
-`frontend/src/router/index.js` 共 5 页：`LoginView`（登录/注册，含身份选择与冒险家三件套）、`HallView`（大厅，按角色显隐「发起委托」/「接单」）、`OrdersView`（我的委托）、`AcceptedView`（冒险家「我的接单」+ 提交交付）、`OrderDetailView`（详情 + 支付 / 确认验收 / 评价弹窗）。`/orders` 需 `role=player`、`/accepted` 需 `role=adventurer`，导航项按角色对称显隐；`/orders/:id` 只要求登录（详情接口公开，冒险家也要看自己接的单）。以上前端拦截均只做体验层，真正校验在 `get_current_player` / `get_current_adventurer`。
+`frontend/src/router/index.js` 共 5 页：`LoginView`（登录/注册，含身份选择与冒险家三件套）、`HallView`（大厅，按角色显隐「发起委托」/「接单」）、`OrdersView`（我的委托）、`AcceptedView`（冒险家「我的接单」+ 提交交付）、`OrderDetailView`（详情 + 支付 / 提交交付 / 确认验收 / 评价弹窗，按角色与状态显隐）。`/orders` 需 `role=player`、`/accepted` 需 `role=adventurer`，导航项按角色对称显隐；`/orders/:id` 只要求登录（详情接口公开，冒险家也要看自己接的单）。以上前端拦截均只做体验层，真正校验在 `get_current_player` / `get_current_adventurer`。
 
 前端已接通完整主链路：下单 → 支付 → 冒险家接单 → 提交交付 → 待验收 → 玩家确认 → 评价 → 7 天自动结算。状态筛选项与后端 `ALL_STATES`（9 态）逐字对齐，写错会被 `list_mine` / `list_by_adventurer` 的 `STATE_INVALID` 拒绝。
 

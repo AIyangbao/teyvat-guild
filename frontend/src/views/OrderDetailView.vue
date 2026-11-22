@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { getOrder, createReview, confirmOrder } from '../api/commission'
+import { getOrder, createReview, confirmOrder, deliverOrder } from '../api/commission'
 import PayDialog from '../components/PayDialog.vue'
 import { ElMessage } from 'element-plus'
 import { auth } from '../stores/auth'
@@ -33,6 +33,31 @@ const canReview = computed(() =>
   auth.user?.id === detail.value.player_id &&
   !reviewed.value
 )
+
+// 前端只能判断「角色 + 状态」：auth.user.id 是 User.id，而 detail.adventurer_id
+// 是 Adventurer.id（FK adventurer.id），两者不同源，前端拿不到自己的档案 id，
+// 因此无法校验「本人」。真归属校验在后端 deliver_by_adventurer（不符 → 403），
+// 与项目既有「前端体验层 / 后端真闸门」约定一致；403 由 request.js 统一弹。
+const canDeliver = computed(() =>
+  detail.value && detail.value.status === '进行中' &&
+  auth.user?.role === 'adventurer' &&
+  detail.value.adventurer_id != null
+)
+const delivering = ref(false)
+
+async function submitDeliver() {
+  delivering.value = true
+  try {
+    await deliverOrder(detail.value.id)
+    ElMessage.success('已提交交付，等待玩家验收')
+    await load()
+  } catch (e) {
+    // request.js 已统一弹错；409 = 状态被别处推进过，刷新拿最新状态即可
+    if (e.response?.status === 409) await load()
+  } finally {
+    delivering.value = false
+  }
+}
 
 // 冒险家「提交交付」后状态变为「待验收」，只有本单玩家能确认推进到「已完成」
 const canConfirm = computed(() =>
@@ -100,6 +125,8 @@ function buildTimeline() {
         </h2>
         <el-button v-if="detail.status === '待支付'" type="danger"
                    @click="payVisible = true">去支付</el-button>
+        <el-button v-if="canDeliver" type="primary" :loading="delivering"
+                   @click="submitDeliver">提交交付</el-button>
         <el-button v-if="canConfirm" type="primary" :loading="confirming"
                    @click="submitConfirm">确认验收</el-button>
         <el-button v-if="canReview" type="primary"
