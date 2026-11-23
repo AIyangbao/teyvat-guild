@@ -16,6 +16,7 @@ function onLogout() {
       <div class="brand" @click="router.push('/')">提瓦特冒险家协会</div>
       <nav class="nav">
         <router-link to="/">委托大厅</router-link>
+        <router-link to="/adventurers">冒险家名录</router-link>
         <router-link v-if="auth.token && auth.user?.role === 'player'" to="/orders">我的委托</router-link>
         <router-link v-if="auth.token && auth.user?.role === 'adventurer'" to="/accepted">我的接单</router-link>
       </nav>

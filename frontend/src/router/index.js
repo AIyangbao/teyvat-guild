@@ -8,6 +8,9 @@ const routes = [
   // 详情页不设角色守卫：详情接口公开，冒险家也要从「我的接单」点进来看自己接的单
   { path: '/orders/:id', name: 'orderDetail', component: () => import('../views/OrderDetailView.vue'), meta: { auth: true } },
   { path: '/accepted', name: 'accepted', component: () => import('../views/AcceptedView.vue'), meta: { auth: true, adventurer: true } },
+  // 名录与档案是公开读侧：不设 auth，游客也能看评价（后端接口同样免登录）
+  { path: '/adventurers', name: 'adventurers', component: () => import('../views/AdventurersView.vue') },
+  { path: '/adventurers/:id', name: 'adventurerProfile', component: () => import('../views/AdventurerProfileView.vue') },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 

@@ -8,7 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import BizError
 from app.core.state_machine import COMPLETED, SETTLED
 from app.models import Adventurer, Commission, Review
-
+from app.schemas.adventurer import AdventurerProfileOut
+from app.schemas.review import ReviewItemOut, ReviewReadOut
 async def create_review(
         db: AsyncSession, order_id: int, player_id: int,
         score: int, content: str = ""
@@ -58,3 +59,70 @@ async def create_review(
         .execution_options(synchronize_session="fetch")
     )
     return review, rating
+
+async def get_review_by_order(db: AsyncSession, order_id: int) -> ReviewReadOut | None:
+    """查某单评价。没有评价返回 None —— 「未评价」是正常业务状态，不是错误。
+
+    用 200 + null 而不是 404：前端刷新详情页要靠它恢复 reviewed 状态，
+    404 会被 request.js 拦截器弹成红色报错，把正常状态当异常最烦人。
+    """
+    r = (await db.execute(
+        select(Review).where(Review.commission_id == order_id)
+    )).scalar_one_or_none() # commission_id 有 unique 约束，最多一条
+    if r is None:
+        return None
+    return ReviewReadOut(
+        id=r.id, commission_id=r.commission_id, score=r.score,
+        content=r.content, created_at=r.created_at,
+    )
+
+async def list_reviews_by_adventurer(
+        db: AsyncSession, adventurer_id: int, page: int, page_size: int
+) -> tuple[int, list[ReviewItemOut]]:
+    """冒险家评价分页。终于命中 idx_review_adventurer(adventurer_id, created_at)。
+
+    order_no 用一条 inner join 取，不冗余存字段：order_no 下单后不变，
+    join 一次搞定，比「加列 + alembic 迁移 + 回填」省一整条链路。
+    """
+    if await db.get(Adventurer, adventurer_id) is None:
+        raise BizError("冒险家不存在", code="ADVENTURER_NOT_FOUND")
+
+    total = (await db.execute(
+        select(func.count()).select_from(Review)
+        .where(Review.adventurer_id == adventurer_id)
+    )).scalar_one()
+
+    rows = (await db.execute(
+        select(Review.id, Review.commission_id, Commission.order_no,
+               Review.score, Review.content, Review.created_at)
+        .join(Commission, Commission.id == Review.commission_id)
+        .where(Review.adventurer_id == adventurer_id)
+        .order_by(Review.created_at.desc(), Review.id.desc())
+        .offset((page - 1) * page_size).limit(page_size)
+    )).all()
+    items = [ReviewItemOut(
+        id=r.id, commission_id=r.commission_id, order_no=r.order_no,
+        score=r.score, content=r.content, created_at=r.created_at,
+    ) for r in rows]
+    return total, items
+
+async def get_adventurer_profile(
+        db: AsyncSession, adventurer_id: int
+) -> AdventurerProfileOut:
+    """档案卡。评分 + 评价数必须成对返回。"""
+    adv = (await db.execute(
+        select(Adventurer).where(Adventurer.id == adventurer_id)
+    )).scalar_one_or_none()
+    if adv is None:
+        raise BizError("冒险家不存在", code="ADVENTURER_NOT_FOUND")
+
+    cnt = (await db.execute(
+        select(func.count()).select_from(Review)
+        .where(Review.adventurer_id == adventurer_id)
+    )).scalar_one()
+
+    return AdventurerProfileOut(
+        id=adv.id, game_nickname=adv.game_nickname, server=adv.server,
+        skill_tags=adv.skill_tags, rating=adv.rating,
+        review_count=cnt, finished_count=adv.finished_count,
+    )

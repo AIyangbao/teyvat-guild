@@ -1,20 +1,29 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { getOrder, createReview, confirmOrder, deliverOrder } from '../api/commission'
+import { getOrder, getOrderReview, createReview, confirmOrder, deliverOrder } from '../api/commission'
 import PayDialog from '../components/PayDialog.vue'
 import { ElMessage } from 'element-plus'
 import { auth } from '../stores/auth'
 
 const route = useRoute()
 const detail = ref(null)
+const myReview = ref(null)   // 后端读回来的评价；刷新页面靠它恢复「已评价」状态
+const reviewed = ref(false)  // 由 myReview 派生：有评价就是已评价
 const loading = ref(false)
 const payVisible = ref(false)
 
 async function load() {
   loading.value = true
   try {
-    detail.value = await getOrder(route.params.id)
+    // 两个请求互不依赖，并行发。评价不存在时接口返回 200 + null，不是 404
+    const [d, r] = await Promise.all([
+      getOrder(route.params.id),
+      getOrderReview(route.params.id),
+    ])
+    detail.value = d
+    myReview.value = r
+    reviewed.value = !!r
   } finally {
     loading.value = false
   }
@@ -23,8 +32,6 @@ onMounted(load)
 const reviewVisible = ref(false)
 const reviewForm = reactive({ score: 5, content: '' })
 const submitting = ref(false)
-const reviewed = ref(false)
-const newRating = ref(null)
 
 // 三个条件同时满足才显示按钮：状态对 + 是本单玩家 + 本地未评价过
 const canReview = computed(() =>
@@ -83,16 +90,17 @@ async function submitConfirm() {
 async function submitReview() {
   submitting.value = true
   try {
-    const res = await createReview(detail.value.id, {
+    await createReview(detail.value.id, {
       score: reviewForm.score, content: reviewForm.content,
     })
     ElMessage.success('评价成功')
-    reviewed.value = true
-    newRating.value = res.adventurer_rating
     reviewVisible.value = false
+    // 写完立刻回读：状态以服务端为准，不在前端手工拼 newRating / reviewed
+    await load()
   } catch (e) {
     // request.js 拦截器已统一弹错，这里只收 UI 状态、不重复弹
-    if (e.response?.status === 409) reviewed.value = true
+    // 409 = 已经评价过（并发提交/别处已提交），回读拿真实评价内容
+    if (e.response?.status === 409) await load()
   } finally {
     submitting.value = false
   }
@@ -105,11 +113,10 @@ const statusTag = s => ({
   已取消: 'info', 已关闭: 'info', 争议中: 'danger',
 }[s] || 'info')
 
-const timeline = ref([])
-function buildTimeline() {
-  if (!detail.value) return []
-  return [...detail.value.timeline].reverse()   // 最新在前
-}
+// 纯展示派生数据用 computed：detail 变化时自动重算，不需要手动维护一份 ref
+const timeline = computed(() =>
+  detail.value ? [...detail.value.timeline].reverse() : []   // 最新在前
+)
 </script>
 
 <template>
@@ -132,7 +139,7 @@ function buildTimeline() {
         <el-button v-if="canReview" type="primary"
                    @click="reviewVisible = true">评价</el-button>
         <el-tag v-if="reviewed" type="success" style="margin-left:8px">
-          已评价 · 冒险家评分 {{ newRating }}
+          已评价 · {{ myReview?.score }} 星
         </el-tag>
       </div>
 
@@ -154,9 +161,21 @@ function buildTimeline() {
         </el-table-column>
       </el-table>
 
+      <!-- 读侧拉回的评价：刷新页面、换浏览器、靠链接分享都能看到，不依赖本地状态 -->
+      <template v-if="myReview">
+        <h3>本次委托评价</h3>
+        <el-descriptions :column="1" border style="margin-bottom: 20px">
+          <el-descriptions-item label="评分">
+            <el-rate :model-value="myReview.score" disabled />
+          </el-descriptions-item>
+          <el-descriptions-item label="内容">{{ myReview.content || '（未填写）' }}</el-descriptions-item>
+          <el-descriptions-item label="评价时间">{{ fmtTime(myReview.created_at) }}</el-descriptions-item>
+        </el-descriptions>
+      </template>
+
       <h3>流转记录</h3>
       <el-timeline style="margin-top: 12px; padding-left: 4px">
-        <el-timeline-item v-for="(t, i) in buildTimeline()" :key="i"
+        <el-timeline-item v-for="(t, i) in timeline" :key="i"
                           :timestamp="fmtTime(t.created_at)" placement="top">
           <el-tag size="small" type="info">{{ t.from_status }}</el-tag>
           <span class="arrow">→</span>

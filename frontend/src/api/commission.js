@@ -10,3 +10,5 @@ export const acceptOrder = id => request.post(`/commissions/${id}/accept`)
 export const deliverOrder = id => request.post(`/commissions/${id}/deliver`)
 export const confirmOrder = id => request.post(`/commissions/${id}/confirm`)
 export const createReview = (id, data) => request.post(`/commissions/${id}/review`, data)
+// 读侧：未评价返回 null（200），不是 404 —— 正常业务状态别当异常弹错
+export const getOrderReview = id => request.get(`/commissions/${id}/review`)

@@ -4,7 +4,7 @@ from app.core.exceptions import BizError
 from app.services import commission_service,commission_state, payment_service, review_service
 from app.schemas.commission import OrderCreateIn, HallPageOut, CommissionDetailOut
 from app.schemas.payment import PayCreateOut
-from app.schemas.review import ReviewIn, ReviewOut
+from app.schemas.review import ReviewIn, ReviewOut, ReviewReadOut
 from app.core.deps import get_current_adventurer, get_current_player
 router = APIRouter(prefix="/commissions",tags=["委托"])
 
@@ -114,6 +114,11 @@ async def accepted_orders(page: int = Query(1, ge=1),
         raise HTTPException(status_code=400,
                             detail={"code":e.code, "message": str(e)})
     return HallPageOut(total=total, items=rows)
+
+@router.get("/{order_id}/review", response_model=ReviewReadOut | None)
+async def get_review(order_id: int, db=DB):
+     """详情页刷新用：没有评价返回 200 + null，不弹红色报错。"""
+     return await review_service.get_review_by_order(db, order_id)
 
 @router.get("/{order_id}", response_model=CommissionDetailOut)
 async def detail(order_id: int, db=DB):
