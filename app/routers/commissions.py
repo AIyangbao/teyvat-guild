@@ -46,7 +46,7 @@ async def aacept(order_id: int,
     except BizError as e:
         status = (409 if e.code in ("STATE_ILLEGAL", "ACCEPT_CONFLICT") 
                   else 404 if e.code == "ORDER_NOT_FOUND" 
-                  else 403 if e.code == "FORBIDDEN"
+                  else 403 if e.code in ("FORBIDDEN", "ADVENTURER_NOT_APPROVED")
                   else 400)
         raise HTTPException(status_code=status, detail={"code": e.code, "message": str(e)})
     return {"order_no": order.order_no, "status": order.status,
@@ -111,7 +111,11 @@ async def accepted_orders(page: int = Query(1, ge=1),
         total, rows = await commission_service.list_by_adventurer(
             db, adventurer_id, page, page_size, status)
     except BizError as e:
-        raise HTTPException(status_code=400,
+        status = (409 if e.code in ("STATE_ILLEGAL", "ACCEPT_CONFLICT")
+                  else 404 if e.code == "ORDER_NOT_FOUND"
+                  else 403 if e.code in ("FORBIDDEN", "ADVENTURER_NOT_APPROVED")
+                  else 400)
+        raise HTTPException(status_code=status,
                             detail={"code":e.code, "message": str(e)})
     return HallPageOut(total=total, items=rows)
 

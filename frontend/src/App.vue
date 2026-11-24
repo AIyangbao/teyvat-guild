@@ -19,6 +19,7 @@ function onLogout() {
         <router-link to="/adventurers">冒险家名录</router-link>
         <router-link v-if="auth.token && auth.user?.role === 'player'" to="/orders">我的委托</router-link>
         <router-link v-if="auth.token && auth.user?.role === 'adventurer'" to="/accepted">我的接单</router-link>
+        <router-link v-if="auth.token && auth.user?.role === 'admin'" to="/admin/audit">审核管理</router-link>
       </nav>
       <div class="user-zone">
         <template v-if="auth.token">

@@ -14,7 +14,8 @@ from app.db import DB
 from app.schemas.catalog import (
     CategoryIn, CategoryOut, CategoryUpdate, ItemIn, ItemOut, ItemUpdate,
 )
-from app.services import catalog_service
+from app.schemas.adventurer import AuditIn, PendingAdventurerPageOut
+from app.services import audit_service,catalog_service
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 _write =  APIRouter(dependencies=[Depends(require_admin)])
@@ -23,6 +24,8 @@ _STATUS =  {
     "ITEM_NOT_FOUND": 404,
     "CATEGORY_DUPLICATE": 409,
     "CATEGORY_IN_USE": 409,
+    "ADVENTURER_NOT_FOUND": 404,
+    "AUDIT_ALREADY_DONE": 409,
 }
 
 def _fail(e: BizError) -> NoReturn:
@@ -78,4 +81,21 @@ async def update_item(item_id:int, data: ItemUpdate,
     except BizError as e:
         _fail(e)
 
+@_write.get("/adventurers/pending", response_model=PendingAdventurerPageOut)
+async def list_pending_adventurers(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=50),
+    db: AsyncSession = DB,
+):
+    """待审列表：挂 _write 子路由 → GET 也带 require_admin（敏感数据）。"""
+    total, items = await audit_service.list_pending_adventurer(db, page, page_size)
+    return PendingAdventurerPageOut(total=total, items=items)
+
+@_write.put("/adventurers/{adv_id}/audit")
+async def audit_adventurer(adv_id: int, data: AuditIn, db: AsyncSession = DB):
+    try:
+        adv = await audit_service.set_audit_status(db, adv_id, data.target)
+        return {"id": adv.id, "audit_status": adv.audit_status}
+    except BizError as e:
+        _fail(e)
 router.include_router(_write)

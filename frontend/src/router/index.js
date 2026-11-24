@@ -11,6 +11,7 @@ const routes = [
   // 名录与档案是公开读侧：不设 auth，游客也能看评价（后端接口同样免登录）
   { path: '/adventurers', name: 'adventurers', component: () => import('../views/AdventurersView.vue') },
   { path: '/adventurers/:id', name: 'adventurerProfile', component: () => import('../views/AdventurerProfileView.vue') },
+  { path: '/admin/audit', name: 'adminAudit', component: () => import('../views/AdminAuditView.vue'), meta: { auth: true, admin: true } },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 
@@ -22,6 +23,7 @@ router.beforeEach(to => {
   // 真正的角色校验在后端 get_current_player / get_current_adventurer
   if (to.meta.player && auth.user?.role !== 'player') return '/'
   if (to.meta.adventurer && auth.user?.role !== 'adventurer') return '/'
+  if (to.meta.admin && auth.user?.role !== 'admin') return '/'
 })
 
 export default router

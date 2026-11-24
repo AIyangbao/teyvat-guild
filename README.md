@@ -33,19 +33,20 @@
 | 查询 | `GET /commissions/hall`、`/mine`、`/accepted`、`/{id}` | 大厅公开分页；`/accepted` 是冒险家侧「我接的委托」，必须注册在 `/{order_id}` 之前 |
 | 评价 | `POST /commissions/{id}/review`、`GET /commissions/{id}/review` | `commission_id` 唯一约束防重复评价；插入后全量 AVG 更新冒险家评分。读侧未评价返回 `200 + null`（不弹 404），供详情页刷新恢复「已评价」状态 |
 | 冒险家公开档案 | `GET /adventurers`、`/adventurers/{id}`、`/adventurers/{id}/reviews` | 全部免登录；名录按在线优先+评分排序，档案与评价分页。卡片不含 `game_uid`，评价列表不含 `player_id`。`review_count=0` 时前端显示「暂无评分」而非默认 5.00 |
+| 审核 | `GET /admin/adventurers/pending`、`PUT /admin/adventurers/{id}/audit` | 待审列表挂 `_write` 子路由，GET 同样要求 admin（含 `game_uid`，不公开）；审核仅 `pending → approved/rejected`，不可回转。`accept_order` 入口用 `require_approved` 闸门，未过审接单返回 403 `ADVENTURER_NOT_APPROVED` |
 | 超时与结算 | `app/tasks/timeout_scanner.py` | 三类候选：支付超时关单、接单超时自转移（3 次后关闭）、已完成满 7 天自动结算并累加 `finished_count` |
 | 缓存 | `app/core/cache.py`、`app/services/cache_keys.py` | Redis 旁路缓存：精确失效 + TTL 30s + 故障降级；redis-py 8 已关默认重试（快失败） |
 | 迁移 | `alembic/versions/`（4 个版本） | 容器启动自动 `alembic upgrade head`，新环境零手工建表 |
 
 ### 前端
 
-`frontend/src/router/index.js` 共 7 页：`LoginView`（登录/注册，含身份选择与冒险家三件套）、`HallView`（大厅，按角色显隐「发起委托」/「接单」）、`OrdersView`（我的委托）、`AcceptedView`（冒险家「我的接单」+ 提交交付）、`OrderDetailView`（详情 + 支付 / 提交交付 / 确认验收 / 评价弹窗，按角色与状态显隐）、`AdventurersView`（冒险家名录）、`AdventurerProfileView`（档案 + 收到的评价分页）。`/orders` 需 `role=player`、`/accepted` 需 `role=adventurer`，导航项按角色对称显隐；`/orders/:id` 只要求登录（详情接口公开，冒险家也要看自己接的单）；`/adventurers` 与档案页完全公开。以上前端拦截均只做体验层，真正校验在 `get_current_player` / `get_current_adventurer`。
+`frontend/src/router/index.js` 共 8 页：`LoginView`（登录/注册，含身份选择与冒险家三件套）、`HallView`（大厅，按角色显隐「发起委托」/「接单」）、`OrdersView`（我的委托）、`AcceptedView`（冒险家「我的接单」+ 提交交付）、`OrderDetailView`（详情 + 支付 / 提交交付 / 确认验收 / 评价弹窗，按角色与状态显隐）、`AdventurersView`（冒险家名录）、`AdventurerProfileView`（档案 + 收到的评价分页）、`AdminAuditView`（管理端审核：待审列表 + 通过/拒绝）。`/orders` 需 `role=player`、`/accepted` 需 `role=adventurer`、`/admin/audit` 需 `role=admin`，导航项按角色对称显隐；`/orders/:id` 只要求登录（详情接口公开，冒险家也要看自己接的单）；`/adventurers` 与档案页完全公开。以上前端拦截均只做体验层，真正校验在 `get_current_player` / `get_current_adventurer` / `require_admin`。
 
 详情页进入时并行拉详情与评价（`Promise.all`），提交评价后回读以服务端为准恢复状态，刷新页面不丢「已评价」标记——不依赖本地 `reviewed` 快照。
 
 前端已接通完整主链路：下单 → 支付 → 冒险家接单 → 提交交付 → 待验收 → 玩家确认 → 评价 → 7 天自动结算。状态筛选项与后端 `ALL_STATES`（9 态）逐字对齐，写错会被 `list_mine` / `list_by_adventurer` 的 `STATE_INVALID` 拒绝。
 
-**仍未做**：管理端界面（管理操作走 OpenAPI / curl）、UI 自动化测试。
+管理端已做审核页（待审列表 + 通过/拒绝）；商品分类/服务项的增删改仍走 OpenAPI / curl。**仍未做**：UI 自动化测试。
 
 ---
 
@@ -89,8 +90,8 @@ pytest -q
 
 ## 测试与压测
 
-- 全量：`pytest -q`。截至 2026-11-23 为 **214 passed / ~5s**（204 + 注册 5 例 + 评价读侧 5 例）。
-- 用例分布：`app/tests/` 下 10 个测试文件 + `conftest.py`，覆盖状态机、安全、超时扫描、商品、委托流程、评价写侧、评价读侧、结算、管理端鉴权、注册选角色。
+- 全量：`pytest -q`。截至 2026-11-24 为 **218 passed / ~5s**（204 + 注册 5 例 + 评价读侧 5 例 + 审核 4 例）。
+- 用例分布：`app/tests/` 下 11 个测试文件 + `conftest.py`，覆盖状态机、安全、超时扫描、商品、委托流程、评价写侧、评价读侧、结算、管理端鉴权、注册选角色、审核闸门。
 - 约定：测试走真实 dev 库但**不留痕** —— `db` fixture 末尾 rollback；测路由时 override `get_db` 复用同一 session 且**故意不 commit**（真 `get_db` 会 commit，一提交 rollback 就撤不掉了）。
 - 冒烟（起服务后可直接跑）：`scripts/smoke_jwt.py`、`scripts/smoke_payment.py`、`scripts/smoke_hall_cache.py`。
 - 压测：`app/bench_accept_full.py`（真 JWT + 支付回调 + S1~S4）、`app/bench_hall_raw.py`（裸 socket 客户端，避开 httpx 客户端 CPU 饱和）。结论与三层判据见 [docs/bench_three_rulers.md](docs/bench_three_rulers.md)：单 worker 大厅约 1355 QPS / p50 6.6ms；缓存单发冷 16ms / 热 3.5ms。**Windows 下 `--workers` 多进程数字不可信**（accept 竞态丢连接），未在 Linux 复测前不要写进简历。
@@ -120,7 +121,7 @@ docker compose up -d --build
 - **价格快照**：明细存下单时的单价与名称，服务项改价不影响历史订单。
 - **超时扫描三条原则**：自转移必须推进 deadline、判定必须在锁内重查、一单一个事务。详见 [docs/timeout_scanner.md](docs/timeout_scanner.md)。
 - **缓存失效收口**：写操作统一走精确失效，配合 TTL 30s 兜底；Redis 不可达时降级直查库，不让缓存拖垮主流程。
-- **角色与权限**：注册端 `Literal` 白名单 + 管理端 `require_admin` 两道闸门；`get_current_adventurer` 同时校验 `role` 和 `Adventurer` 档案是否存在。
+- **角色与权限**：注册端 `Literal` 白名单 + 管理端 `require_admin` 两道闸门；`get_current_adventurer` 同时校验 `role` 和 `Adventurer` 档案是否存在。冒险家审核是**业务资格**而非身份校验，闸门放在 `accept_order` 入口（`require_approved`）——放 deps 会连「查自己接的单」也误拦。审核状态只 `pending → approved/rejected` 单向，不可回转。
 - **分层**：路由层只做编排与错误码映射，业务/状态转换下沉到 `services/`，保持不依赖 Request、可单测。
 
 ---
@@ -145,4 +146,4 @@ docker compose up -d --build
 - 支付回调与超时关单竞态时事务回滚，payment 永远 pending；真实场景需退款/人工流程。
 - Redis 未启用密码，靠「仅 compose 内网可达」保证边界；若日后暴露端口必须补认证。
 - 评价状态未写进订单详情响应，首屏靠并行请求 `GET /commissions/{id}/review` 恢复（已评价返回内容，未评价返回 null）。多一次往返，换取详情响应不改形状。
-- 无管理端 UI、无 WebSocket 提醒、无统计报表。
+- 管理端只有审核页，商品分类/服务项仍靠 OpenAPI；无 WebSocket 提醒、无统计报表。

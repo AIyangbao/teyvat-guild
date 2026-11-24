@@ -29,6 +29,7 @@ async def _another_adventurer(db, another_player):
         game_uid=uuid.uuid4().hex[:10],
         server="天空岛",
         game_nickname="另一个冒险家",
+        audit_status="approved",
     )
     db.add(adv)
     await db.flush()

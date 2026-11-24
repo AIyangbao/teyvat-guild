@@ -5,6 +5,7 @@ from app.core.state_machine import IllegalTransition, next_status,IN_PROGRESS,PE
 from app.core.time_utils import now_plus, utcnow
 from app.core.cache import cache_delete_prefix
 from app.services.cache_keys import HALL_CACHE_PREFIX
+from app.services.audit_service import require_approved
 from app.models import Commission, CommissionLog, Adventurer
 from app.config import settings
 # 事件 → 该记的时间戳字段。只列「需要记时刻」的，其余不填
@@ -56,6 +57,7 @@ async def transition(db: AsyncSession, order_id: int, event: str, *,
 
 async def accept_order(db: AsyncSession, order_id: int, adventurer_id: int) -> Commission:
     """抢单：单语句 CAS。条件不满足则 rowcount==0，说明被别人抢先。"""
+    await require_approved(db, adventurer_id)
     result = await db.execute(
         update(Commission)
         .where(Commission.id == order_id,

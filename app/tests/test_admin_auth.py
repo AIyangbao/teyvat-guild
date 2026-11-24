@@ -38,12 +38,15 @@ def test_every_admin_write_is_guarded():
     assert not missed, f"以下写接口没挂 require_admin:{missed}"
 
 def test_admin_reads_stay_public():
-    """前台游客靠这两个 GET 看商品，被误锁就白屏。"""
+    """前台游客靠 2 个 GET 看商品；待审列表必须带鉴权。"""
     reads = [(p, deps) for p, methods, deps in _leaf_routes(app.routes)
              if p.startswith("/admin") and methods <= {"GET", "HEAD"}]
-    assert len(reads) == 2, f"预期2个公开读接口, 实际{len(reads)}"
-    assert all(not any(d.call is require_admin for d in deps)
-               for _, deps in reads)
+    public = [p for p, deps in reads
+              if not any(d.call is require_admin for d in deps)]
+    guarded = [p for p, deps in reads
+               if any(d.call is require_admin for d in deps)]
+    assert sorted(public) == ["/admin/categories", "/admin/items"], public
+    assert "/admin/adventurers/pending" in guarded, reads
 
 def test_public_admin_router_has_no_writes():
     """把「管理写接口必须挂 _write」这个约定变成断言。

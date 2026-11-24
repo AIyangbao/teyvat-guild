@@ -56,6 +56,7 @@ async def adventurer_row(db, player):
          game_uid=uuid.uuid4().hex[:10],
          server="天空岛",
          game_nickname="测试冒险家",
+         audit_status="approved",
      )
      db.add(adv)
      await db.flush()
