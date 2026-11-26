@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { getOrder, getOrderReview, createReview, confirmOrder, deliverOrder } from '../api/commission'
+import { getOrder, getOrderReview, createReview, confirmOrder, deliverOrder, getRecommendations } from '../api/commission'
 import PayDialog from '../components/PayDialog.vue'
 import { ElMessage } from 'element-plus'
 import { auth } from '../stores/auth'
@@ -10,20 +10,43 @@ const route = useRoute()
 const detail = ref(null)
 const myReview = ref(null)   // 后端读回来的评价；刷新页面靠它恢复「已评价」状态
 const reviewed = ref(false)  // 由 myReview 派生：有评价就是已评价
+const recommendations = ref([])
 const loading = ref(false)
 const payVisible = ref(false)
+
+// 推荐分拆解的中文标签和颜色，纯展示映射。顺序即展示顺序。
+const REASON_LABELS = {
+  same_server: { label: '同服', type: 'success' },
+  online: { label: '在线', type: 'success' },
+  rating: { label: '评分', type: 'warning' },
+  experience: { label: '经验', type: 'warning' },
+  load: { label: '负载', type: 'danger' },
+}
+
+// 只展示非 0 的拆解项：0 分项是噪音，让它占了卡片反而看不清加分来源
+const nonZeroReasons = r =>
+  Object.entries(REASON_LABELS)
+    .filter(([key]) => r.reasons[key] !== 0)
+    .map(([key, meta]) => ({
+      ...meta,
+      // 负载是负分，其余是正分；+/- 号让「为什么是这个总分」一眼可对账
+      text: `${meta.label} ${r.reasons[key] > 0 ? '+' : ''}${r.reasons[key]}`,
+    }))
 
 async function load() {
   loading.value = true
   try {
-    // 两个请求互不依赖，并行发。评价不存在时接口返回 200 + null，不是 404
-    const [d, r] = await Promise.all([
+    // 三个请求互不依赖，并行发。评价不存在返回 200 + null；推荐是增强信息，
+    // 它挂了不该拖垮详情页，所以单独 catch 吞掉并给空列表。
+    const [d, r, recs] = await Promise.all([
       getOrder(route.params.id),
       getOrderReview(route.params.id),
+      getRecommendations(route.params.id).catch(() => []),
     ])
     detail.value = d
     myReview.value = r
     reviewed.value = !!r
+    recommendations.value = recs
   } finally {
     loading.value = false
   }
@@ -161,6 +184,48 @@ const timeline = computed(() =>
         </el-table-column>
       </el-table>
 
+      <!-- 派单推荐：只在待接单时有意义。已接单后再列候选人只会误导 -->
+      <template v-if="detail.status === '待接单'">
+        <div class="rec-header">
+          <h3>推荐冒险家</h3>
+          <span class="rec-hint">按同服 / 在线 / 真实评分 / 经验 / 负载综合排序，点昵称看档案</span>
+        </div>
+        <div v-if="recommendations.length" class="rec-grid">
+          <el-card v-for="r in recommendations" :key="r.adventurer_id"
+                   shadow="hover" class="rec-card">
+            <div class="rec-top">
+              <router-link :to="`/adventurers/${r.adventurer_id}`" class="rec-name">
+                {{ r.game_nickname }}
+              </router-link>
+              <span class="rec-score">推荐分 {{ r.score }}</span>
+            </div>
+            <div class="rec-facts">
+              <el-tag size="small" :type="r.same_server ? 'success' : 'info'">
+                {{ r.same_server ? '同服' : r.server }}
+              </el-tag>
+              <el-tag size="small" :type="r.online_status === 'online' ? 'success' : 'info'">
+                {{ r.online_status === 'online' ? '在线' : '离线' }}
+              </el-tag>
+              <span class="rec-metric">
+                评分 <el-rate v-if="r.review_count > 0" :model-value="Number(r.rating)"
+                             disabled size="small" />
+                <span v-else class="rec-na">暂无评分</span>
+              </span>
+            </div>
+            <div class="rec-counts">
+              完成 {{ r.finished_count }} 单 · 在途 {{ r.active_count }} 单
+            </div>
+            <div class="rec-reasons">
+              <el-tag v-for="(part, i) in nonZeroReasons(r)" :key="i"
+                      size="small" :type="part.type" effect="plain">
+                {{ part.text }}
+              </el-tag>
+            </div>
+          </el-card>
+        </div>
+        <el-empty v-else description="暂无符合条件的冒险家" :image-size="60" />
+      </template>
+
       <!-- 读侧拉回的评价：刷新页面、换浏览器、靠链接分享都能看到，不依赖本地状态 -->
       <template v-if="myReview">
         <h3>本次委托评价</h3>
@@ -238,5 +303,71 @@ h3 {
 .role {
   color: #c0c4cc;
   font-size: 12px;
+}
+
+.rec-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.rec-hint {
+  color: #909399;
+  font-size: 12px;
+}
+.rec-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+  margin-bottom: 20px;
+}
+.rec-card {
+  border-radius: 8px;
+}
+.rec-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.rec-name {
+  font-weight: 600;
+  font-size: 15px;
+  color: #409eff;
+  text-decoration: none;
+}
+.rec-name:hover { text-decoration: underline; }
+.rec-score {
+  color: #f56c6c;
+  font-weight: 600;
+}
+.rec-facts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.rec-metric {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #606266;
+}
+.rec-na {
+  color: #c0c4cc;
+}
+.rec-counts {
+  font-size: 12px;
+  color: #606266;
+  margin-bottom: 8px;
+}
+.rec-reasons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px solid #ebeef5;
 }
 </style>

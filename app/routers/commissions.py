@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends,  Query, HTTPException
 from app.db import DB
 from app.core.exceptions import BizError
-from app.services import commission_service,commission_state, payment_service, review_service
+from app.services import (commission_service,commission_state, payment_service,
+                           recommend_service,review_service)
+from app.schemas.recommend import RecommendationOut
 from app.schemas.commission import OrderCreateIn, HallPageOut, CommissionDetailOut
 from app.schemas.payment import PayCreateOut
 from app.schemas.review import ReviewIn, ReviewOut, ReviewReadOut
@@ -131,6 +133,15 @@ async def detail(order_id: int, db=DB):
     except BizError as e:
         status = 404 if e.code == "ORDER_NOT_FOUND" else 400
         raise HTTPException(status_code=status, detail={"code": e.code, "message": str(e)})
+    
+@router.get("/{order_id}/recommendations", response_model=list[RecommendationOut])
+async def recommend_adventurers(
+    order_id: int,
+    limit: int = Query(5, ge=1, le=20),
+    db=DB,
+):
+  """只读推荐：给定委托，返回 Top N 合适冒险家（含分数拆解）。"""
+  return await recommend_service.recommend_for_order(db, order_id, limit)
 
 @router.post("/{order_id}/review", response_model=ReviewOut)
 async def create_review(order_id: int, data:ReviewIn, db=DB,

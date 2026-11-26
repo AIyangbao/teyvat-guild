@@ -12,3 +12,6 @@ export const confirmOrder = id => request.post(`/commissions/${id}/confirm`)
 export const createReview = (id, data) => request.post(`/commissions/${id}/review`, data)
 // 读侧：未评价返回 null（200），不是 404 —— 正常业务状态别当异常弹错
 export const getOrderReview = id => request.get(`/commissions/${id}/review`)
+// 派单推荐：只读，返回 Top N 冒险家 + 分数拆解
+export const getRecommendations = (id, limit = 5) =>
+  request.get(`/commissions/${id}/recommendations`, { params: { limit } })
