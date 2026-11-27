@@ -15,7 +15,8 @@ from app.schemas.catalog import (
     CategoryIn, CategoryOut, CategoryUpdate, ItemIn, ItemOut, ItemUpdate,
 )
 from app.schemas.adventurer import AuditIn, PendingAdventurerPageOut
-from app.services import audit_service,catalog_service
+from app.schemas.stats import StatsOverviewOut
+from app.services import audit_service,catalog_service, stats_service
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 _write =  APIRouter(dependencies=[Depends(require_admin)])
@@ -80,6 +81,11 @@ async def update_item(item_id:int, data: ItemUpdate,
         return await catalog_service.update_item(db, item_id, data)
     except BizError as e:
         _fail(e)
+
+@_write.get("/stats/overview", response_model=StatsOverviewOut)
+async def stats_overview(days: int = Query(7, ge=1, le=90), db: AsyncSession = DB):
+    """看板聚合：挂 _write 子路由 → require_admin 生效（经营数据不公开）。"""
+    return await stats_service.get_overview(db, days)
 
 @_write.get("/adventurers/pending", response_model=PendingAdventurerPageOut)
 async def list_pending_adventurers(

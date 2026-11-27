@@ -5,3 +5,6 @@ export const listPendingAdventurers = params =>
   request.get('/admin/adventurers/pending', { params })
 export const auditAdventurer = (id, target) =>
   request.put(`/admin/adventurers/${id}/audit`, { target })
+// 经营看板：一次拉全部维度，days 控制趋势图天数
+export const getStatsOverview = days =>
+  request.get('/admin/stats/overview', { params: { days } })

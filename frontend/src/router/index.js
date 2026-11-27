@@ -12,6 +12,7 @@ const routes = [
   { path: '/adventurers', name: 'adventurers', component: () => import('../views/AdventurersView.vue') },
   { path: '/adventurers/:id', name: 'adventurerProfile', component: () => import('../views/AdventurerProfileView.vue') },
   { path: '/admin/audit', name: 'adminAudit', component: () => import('../views/AdminAuditView.vue'), meta: { auth: true, admin: true } },
+  { path: '/admin/stats', name: 'adminStats', component: () => import('../views/AdminStatsView.vue'), meta: { auth: true, admin: true } },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 
