@@ -3,10 +3,11 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-
+from fastapi.staticfiles import StaticFiles
+from app.services.storage_service import AVATAR_DIR
 from app.config import settings
 from app.db import engine
-from app.routers import admin, auth,commissions, payments, adventurers
+from app.routers import admin, auth,commissions, payments, adventurers, users
 from app.tasks.timeout_scanner import scan_once
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Teyvat Guild", lifespan=lifespan)
+app.mount("/avatars", StaticFiles(directory=AVATAR_DIR, check_dir=False), name="avatars")
+app.include_router(users.router)
 app.include_router(admin.router)
 app.include_router(commissions.router)
 app.include_router(adventurers.router)
