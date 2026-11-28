@@ -56,6 +56,10 @@ services:
         condition: service_healthy
     expose:
       - "8000"                # 只在 compose 内网暴露，不占宿主机端口
+    volumes:
+      # 头像落在 /srv/data/avatars（WORKDIR=/srv，storage_service 往上三级拼出来的）
+      # 必须挂 volume：否则容器重建后文件没了，DB 里 URL 还在 → 全部显示默认头像
+      - teyvat_avatars_data:/srv/data/avatars
 
   frontend:
     build: ./frontend
@@ -69,3 +73,4 @@ services:
 volumes:
   teyvat_mysql_data:
   teyvat_redis_data:
+  teyvat_avatars_data:
