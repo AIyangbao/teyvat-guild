@@ -11,6 +11,8 @@ const routes = [
   // 名录与档案是公开读侧：不设 auth，游客也能看评价（后端接口同样免登录）
   { path: '/adventurers', name: 'adventurers', component: () => import('../views/AdventurersView.vue') },
   { path: '/adventurers/:id', name: 'adventurerProfile', component: () => import('../views/AdventurerProfileView.vue') },
+  // 个人中心：三种角色都能进，角色差异由页面内 v-if 处理
+  { path: '/profile', name: 'profile', component: () => import('../views/ProfileView.vue'), meta: { auth: true } },
   { path: '/admin/audit', name: 'adminAudit', component: () => import('../views/AdminAuditView.vue'), meta: { auth: true, admin: true } },
   { path: '/admin/stats', name: 'adminStats', component: () => import('../views/AdminStatsView.vue'), meta: { auth: true, admin: true } },
   { path: '/:pathMatch(.*)*', redirect: '/' },

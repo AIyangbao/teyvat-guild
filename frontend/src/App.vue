@@ -24,7 +24,8 @@ function onLogout() {
       </nav>
       <div class="user-zone">
         <template v-if="auth.token">
-          <span class="nickname">{{ auth.user?.nickname }}</span>
+          <span class="nickname link" @click="router.push('/profile')">{{ auth.user?.nickname }}</span>
+          <el-button size="small" @click="router.push('/profile')">个人中心</el-button>
           <el-button size="small" @click="onLogout">退出</el-button>
         </template>
         <el-button v-else size="small" type="primary" @click="router.push('/login')">
@@ -77,5 +78,11 @@ function onLogout() {
 .nickname {
   color: #909399;
   font-size: 14px;
+}
+.link {
+  cursor: pointer;
+}
+.link:hover {
+  color: #409eff;
 }
 </style>
